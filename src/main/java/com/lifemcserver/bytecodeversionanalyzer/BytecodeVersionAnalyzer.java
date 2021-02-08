@@ -100,7 +100,7 @@ final class BytecodeVersionAnalyzer {
      */
     private static final double ONE_HUNDRED = 100.0D;
     /**
-     * Dollar literal pattern that mathces a dollar sign.
+     * Dollar literal pattern that matches a dollar sign.
      */
     private static final Pattern dollarPattern = Pattern.compile("$", Pattern.LITERAL);
     /**
