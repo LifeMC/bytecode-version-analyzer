@@ -58,6 +58,7 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 - [ ] Add tests
 - [ ] Test with preview (--enable-preview) versions and Multi-Release JARs
 - [ ] Option to print only packages with below/above specified version (i.e not every single class, reduces messages)
+- [ ] Use a logger to log messages/errors
 
 # Security Policy
 
