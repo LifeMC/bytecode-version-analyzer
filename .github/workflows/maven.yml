@@ -50,6 +50,13 @@ jobs:
                 with:
                     languages: java
 
+            -   name: Build with Maven
+                env:
+                    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
+                    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+                run: |
+                    mvn clean verify org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+
             -   name: Perform CodeQL Analysis
                 uses: github/codeql-action/analyze@main
 
@@ -68,18 +75,11 @@ jobs:
                 with:
                     sarif_file: results.sarif
 
-            -   name: Build with Maven
-                env:
-                    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
-                    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-                run: |
-                    mvn clean verify org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v2.2.2
                 with:
-                    name: skript-nightly
-                    path: target/Skript.jar
+                    name: bytecode-version-analyzer-nightly.jar
+                    path: target/bytecode-version-analyzer.jar
 
             -   name: shellcheck
                 uses: ludeeus/action-shellcheck@1.0.0
