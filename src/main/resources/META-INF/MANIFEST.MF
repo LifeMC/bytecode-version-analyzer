@@ -1,5 +1,6 @@
 Manifest-Version: 1.0
 Main-Class: com.lifemcserver.bytecodeversionanalyzer.BytecodeVersionAnalyzer
 Automatic-Module-Name: com.lifemcserver.bytecodeversionanalyzer
+Multi-Release: true
 Sealed: true
 

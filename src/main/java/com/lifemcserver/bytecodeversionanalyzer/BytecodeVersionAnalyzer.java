@@ -5,14 +5,23 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
 import java.io.*;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.math.RoundingMode;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 import java.time.Year;
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import java.util.zip.ZipFile;
 
 /**
@@ -34,16 +43,6 @@ final class BytecodeVersionAnalyzer {
      */
     private static final String errorPrefix = "error: ";
 
-    // TODO Read these from pom.xml too
-    /**
-     * The URL for the source code of the program.
-     */
-    private static final String sourceUrl = "https://github.com/LifeMC/bytecode-version-analyzer/";
-    /**
-     * The page where issues for the project can be created.
-     */
-    private static final String issuesUrl = sourceUrl + "issues/";
-
     // Required for getting version at runtime
     /**
      * The Maven groupId of the project.
@@ -55,12 +54,29 @@ final class BytecodeVersionAnalyzer {
     private static final String artifactId = "bytecode-version-analyzer";
 
     /**
+     * The decimal format for two numbers at most after the first dot in non-integer/long numbers.
+     */
+    private static final ThreadLocal<DecimalFormat> twoNumbersAfterDotFormat = ThreadLocal.withInitial(TwoNumbersAfterDotDecimalFormat::new);
+    /**
+     * The parsed model object for pom file, for getting the version and other information.
+     */
+    private static Model model = null;
+
+    /**
      * Called by the JVM when the program is double clicked or used from the command line.
      * This a CLI program, so it should instantly close if double clicked.
      *
      * @param args The arguments array passed by the JVM to indicate command line arguments.
      */
     public static final void main(final String[] args) {
+        loadPom();
+
+        if (model == null) {
+            warning();
+            warning("couldn't load POM file; some things will not display");
+            warning();
+        }
+
         if (args == null || args.length < 1 || args[0].length() < 1) {
             // Display the help and quit, called with no/invalid arguments; maybe just double clicking
             displayHelp();
@@ -76,6 +92,8 @@ final class BytecodeVersionAnalyzer {
         String startOfArgumentValue = null;
 
         final int argsLength = args.length;
+
+        String filter = null;
 
         for (int i = 0; i < argsLength; i++) {
             final String arg = args[i];
@@ -134,32 +152,43 @@ final class BytecodeVersionAnalyzer {
                 continue;
             }
 
+            if (arg.startsWith("--filter")) {
+                startOfArgumentValue = "filter";
+                continue;
+            }
+
+            if ("filter".equals(startOfArgumentValue)) {
+                startOfArgumentValue = null;
+                filter = arg;
+
+                continue;
+            }
+
             archivePath.append(arg);
 
             if (i < argsLength - 1)
                 archivePath.append(" ");
         }
 
-        // OK, we are processing an archive
-        final ZipFile archive;
-        final String path = archivePath.toString();
+        // OK, we are processing a jar
+        final JarFile jar;
+        final String path = archivePath.toString().trim();
 
         try {
-            // ZipFile instead of JarFile to be more compatible
             if (!new File(path).exists()) {
                 if (!printedAtLeastOneVersion) {
-                    error("archive file does not exist: " + path);
+                    error("archive file does not exist: " + path + " (tip: use quotes if the path contains space)");
                 }
                 return;
             }
 
-            archive = new ZipFile(path);
+            jar = newJarFile(path);
         } catch (final IOException e) {
             throw handleError(e);
         }
 
-        // Process the archive
-        final Map<String, ClassFileVersion> classes = getClassFileVersionsInArchive(archive);
+        // Process the jar
+        final Map<String, ClassFileVersion> classes = getClassFileVersionsInJar(jar);
         final Map<ClassFileVersion, Integer> counter = new HashMap<>();
 
         for (final Map.Entry<String, ClassFileVersion> entry : classes.entrySet()) {
@@ -172,13 +201,13 @@ final class BytecodeVersionAnalyzer {
             counter.put(version, amount + 1);
 
             if (printIfBelow != null) {
-                if (printIfBelow.isHigherThan(version)) {
+                if (printIfBelow.isHigherThan(version) && (filter == null || clazz.contains(filter))) {
                     warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is below specified (" + printIfBelow + ", Java " + printIfBelow.toJavaVersion() + ")");
                 }
             }
 
             if (printIfAbove != null) {
-                if (version.isHigherThan(printIfAbove)) {
+                if (version.isHigherThan(printIfAbove) && (filter == null || clazz.contains(filter))) {
                     warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is above specified (" + printIfAbove + ", Java " + printIfAbove.toJavaVersion() + ")");
                 }
             }
@@ -196,47 +225,128 @@ final class BytecodeVersionAnalyzer {
         }
     }
 
-    private static final class EnumerationIterator<T> implements Iterator<T> {
-        private final Enumeration<T> enumeration;
+    private static final Object runtimeVersion;
+    private static final MethodHandle jarFileMultiReleaseConstructor;
 
-        private EnumerationIterator(final Enumeration<T> enumeration) {
-            this.enumeration = enumeration;
-        }
+    private static final MethodHandle versionedStream = findVersionedStream();
 
-        @Override
-        public final boolean hasNext() {
-            return enumeration.hasMoreElements();
-        }
+    static {
+        // In-block to guarantee order of execution. Tools such as IntelliJ can re-arrange field order.
+        runtimeVersion = findRuntimeVersion();
+        jarFileMultiReleaseConstructor = findConstructor();
+    }
 
-        @Override
-        public final T next() {
-            return enumeration.nextElement();
+    private static final MethodHandle findVersionedStream() {
+        try {
+            //noinspection JavaLangInvokeHandleSignature
+            return MethodHandles.publicLookup().findVirtual(JarFile.class, "versionedStream", MethodType.methodType(Stream.class));
+        } catch (final NoSuchMethodException | IllegalAccessException e) {
+            return null;
         }
     }
 
-    private static final class EnumerationIterable<T> implements Iterable<T> {
-        private final Enumeration<T> enumeration;
-
-        public EnumerationIterable(final Enumeration<T> enumeration) {
-            this.enumeration = enumeration;
-        }
-
-        @Override
-        public final Iterator<T> iterator() {
-            return new EnumerationIterator<>(enumeration);
+    private static final Object findRuntimeVersion() {
+        try {
+            // does not exist on JDK 8 obviously, we must suppress it.
+            //noinspection JavaLangInvokeHandleSignature
+            final MethodHandle runtimeVersionMethod = MethodHandles.publicLookup().findStatic(JarFile.class, "runtimeVersion", MethodType.methodType(Class.forName("java.lang.Runtime$Version")));
+            return runtimeVersionMethod.invoke();
+        } catch (final ClassNotFoundException e) {
+            return null;
+        } catch (final Throwable e) {
+            throw handleError(e);
         }
     }
 
-    private static final Map<String, ClassFileVersion> getClassFileVersionsInArchive(final ZipFile archive) {
+    private static final MethodHandle findConstructor() {
+        if (runtimeVersion == null)
+            return null;
+        try {
+            // does not exist on JDK 8 obviously, we must suppress it.
+            //noinspection JavaLangInvokeHandleSignature
+            return MethodHandles.publicLookup().findConstructor(JarFile.class, MethodType.methodType(void.class, File.class, boolean.class, int.class, runtimeVersion.getClass()));
+        } catch (final NoSuchMethodException | IllegalAccessException e) {
+            throw handleError(e);
+        }
+    }
+
+    /**
+     * Creates a new JAR file object with Multi-Release JAR support from the given path.
+     *
+     * @param path The path of the JAR file.
+     *
+     * @return A new JAR file object with Multi-Release JAR support.
+     */
+    private static final JarFile newJarFile(final String path) throws IOException {
+        if (jarFileMultiReleaseConstructor != null) {
+            try {
+                return (JarFile) jarFileMultiReleaseConstructor.invoke(new File(path), true, ZipFile.OPEN_READ, runtimeVersion);
+            } catch (final Throwable tw) {
+                throw handleError(tw);
+            }
+        }
+        return new JarFile(path);
+    }
+
+    /**
+     * Formats a double to remove extra verbose numbers and only show 2 numbers after the dot.
+     *
+     * @param number The double number.
+     *
+     * @return The non-verbose, human-friendly read-able double.
+     */
+    private static final String formatDouble(final double number) {
+        return twoNumbersAfterDotFormat.get().format(number);
+    }
+
+    private static final class TwoNumbersAfterDotDecimalFormat extends DecimalFormat {
+        public TwoNumbersAfterDotDecimalFormat() {
+            super("##.##");
+            setRoundingMode(RoundingMode.DOWN);
+        }
+    }
+
+    private static final double percentOf(final double current, final double total) {
+        return (current / total) * 100.00D;
+    }
+
+    private static final <T> Stream<T> enumerationAsStream(final Enumeration<T> e) {
+        return StreamSupport.stream(
+            new Spliterators.AbstractSpliterator<T>(Long.MAX_VALUE, Spliterator.ORDERED) {
+                public final boolean tryAdvance(final Consumer<? super T> action) {
+                    if(e.hasMoreElements()) {
+                        action.accept(e.nextElement());
+                        return true;
+                    }
+                    return false;
+                }
+                public final void forEachRemaining(final Consumer<? super T> action) {
+                    while(e.hasMoreElements()) action.accept(e.nextElement());
+                }
+            }, false);
+    }
+
+    private static final Map<String, ClassFileVersion> getClassFileVersionsInJar(final JarFile jar) {
         final Map<String, ClassFileVersion> classes = new HashMap<>();
 
-        for (final ZipEntry entry : new EnumerationIterable<>(archive.entries())) {
+        final Stream<JarEntry> stream;
+        try {
+            // must be done
+            //noinspection unchecked
+            stream = versionedStream != null ? ((Stream<JarEntry>) versionedStream.invoke(jar)) : enumerationAsStream(jar.entries());
+        } catch (final Throwable tw) {
+            throw handleError(tw);
+        }
+
+        for (JarEntry entry : stream.toArray(JarEntry[]::new)) {
             if (!entry.isDirectory()) {
-                if (entry.getName().endsWith(".class")) {
+                if (entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
+                    entry = jar.getJarEntry(entry.getName());
+
                     final InputStream in;
 
                     try {
-                        in = archive.getInputStream(entry);
+                        in = jar.getInputStream(entry);
                     } catch (final IOException e) {
                         throw handleError(e);
                     }
@@ -312,6 +422,10 @@ final class BytecodeVersionAnalyzer {
             return major - 44;
         }
 
+		private static final ClassFileVersion fromJavaVersion(final String javaVersion) {
+			return fromBytecodeVersionString((Integer.parseInt(javaVersion) + 44) + ".0");
+		}
+
         @Override
         public final String toString() {
             return major + "." + minor;
@@ -321,7 +435,15 @@ final class BytecodeVersionAnalyzer {
             return toString() + " (Java " + toJavaVersion() + ")";
         }
 
-        private static final ClassFileVersion fromString(final String string) {
+        private static  final ClassFileVersion fromString(final String string) {
+            try {
+                return fromBytecodeVersionString(string);
+            } catch (final IllegalArgumentException e) {
+                return fromJavaVersion(string);
+            }
+        }
+
+        private static final ClassFileVersion fromBytecodeVersionString(final String string) {
             final String[] splitByDot = dot.split(string);
 
             if (splitByDot.length != 2) {
@@ -356,6 +478,34 @@ final class BytecodeVersionAnalyzer {
      * @return The version from the attached maven pom file to the JAR.
      */
     private static final String getVersion() {
+        if (model == null)
+            return "Unknown-Version";
+        return model.getVersion();
+    }
+
+    /**
+     * Gets the source url.
+     *
+     * @return The source url or "Error-Loading-Pom" string if it can't get it.
+     */
+    private static final String getSourceUrl() {
+        if (model == null)
+            return "Error-Loading-Pom";
+        return model.getScm().getUrl();
+    }
+
+    /**
+     * Gets the issues url.
+     *
+     * @return The issues url or "Error-Loading-Pom" string if it can't get it.
+     */
+    private static final String getIssuesUrl() {
+        if (model == null)
+            return "Error-Loading-Pom";
+        return model.getIssueManagement().getUrl();
+    }
+
+    private static final void loadPom() {
         InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/" + groupId + "/" + artifactId + "/pom.xml");
 
         if (stream == null) {
@@ -367,25 +517,21 @@ final class BytecodeVersionAnalyzer {
                     stream = new FileInputStream(file);
                 }
             } catch (final FileNotFoundException | URISyntaxException e) {
-                return "Unknown-Version";
+                return;
             }
 
             if (stream == null)
-                return "Unknown-Version";
+                return;
         }
 
         final MavenXpp3Reader reader = new MavenXpp3Reader();
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
 
-        final Model model;
-
         try {
             model = reader.read(bufferedReader);
         } catch (final IOException | XmlPullParserException e) {
-            return "Unknown-Version";
+            throw handleError(e);
         }
-
-        return model.getVersion();
     }
 
     /**
@@ -396,15 +542,20 @@ final class BytecodeVersionAnalyzer {
         info("Bytecode Version Analyzer v" + getVersion());
         info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " GNU General Public License v3.0");
         info();
-        info("Source code can be found at: " + sourceUrl);
+        info("Source code can be found at: " + getSourceUrl());
         info();
         info("Usage:");
         info();
         info("Analyze bytecode version of class files from the provided JAR file:");
-        info("[--print-if-below <major.minor>] [--print-if-above <major.minor>] <paths-to-jars>");
+        info("[--print-if-below <major.minor or Java version>] [--print-if-above <major.minor or Java version>] <paths-to-jars>");
         info();
         info("Show bytecode version of a class file:");
-        info("[--print-if-below <major.minor>] [--print-if-above <major.minor>] <paths-to-class-files>");
+        info("[--print-if-below <major.minor or Java version>] [--print-if-above <major.minor or Java version>] <paths-to-class-files>");
+        info();
+        info("Additional arguments");
+        info();
+        info("--filter <filter text>: Filters the --print-if-above and --print-if-below messages to those that contain the specified text only.");
+        info("i.e great for filtering to your package only, or a specific library's package only.");
         info();
     }
 
@@ -436,7 +587,7 @@ final class BytecodeVersionAnalyzer {
     private static final RuntimeException handleError(final Throwable error) {
         error();
         error("An error occurred when running Bytecode Version Analyzer.");
-        error("Please report the error below by creating a new issue on " + issuesUrl);
+        error("Please report the error below by creating a new issue on " + getIssuesUrl());
         error();
 
         // TODO Use a logger

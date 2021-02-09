@@ -42,9 +42,16 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
 # Limitations/To-do
 
+## Notes
+
+- Multi-Release JARs are supported. However, to fully support Multi-Release JARs, you must run the program from Java 10 or above.
+  This because JarFile#versionedStream is added in Java 10.
+
+  However, you can still get partial support on Java 9. This because basic versioned JarFile
+  support is added in Java 9. (The new JarFile constructor accepting Runtime.Version objects.)
+
 ## Not tested for
 
-- Classes from Multi-Release JARs are not tested.
 - Classes compiled for preview runtimes (--enable-preview) are not tested.
 
 ## Limitations/notes
@@ -56,13 +63,13 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
 - [ ] Refactor code to make it more organized
 - [ ] Add tests
-- [ ] Test with preview (--enable-preview) versions and Multi-Release JARs
+- [ ] Test with preview (--enable-preview) versions
 - [ ] Option to print only packages with below/above specified version (i.e not every single class, reduces messages)
 - [ ] Use a logger to log messages/errors
 
 # Security Policy
 
-Please see [Security policy](https://github.com/LifeMC/bytecode-version-analyzer/blob/main/.github/SECURITY.md)
+Please see [Security policy](https://github.com/LifeMC/bytecode-version-analyzer/blob/main/.github/SECURITY.md).
 
 # Building, Project Preferences, Contributing
 
