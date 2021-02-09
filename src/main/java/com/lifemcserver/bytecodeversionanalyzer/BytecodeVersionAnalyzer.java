@@ -184,11 +184,15 @@ final class BytecodeVersionAnalyzer {
             }
         }
 
+        final int total = classes.size();
+
         for (final Map.Entry<ClassFileVersion, Integer> entry : counter.entrySet()) {
             final ClassFileVersion version = entry.getKey();
             final int usages = entry.getValue();
 
-            info(usages + " classes use " + version.toStringAddJavaVersionToo() + " class file version");
+            final double percent = percentOf(usages, total);
+
+            info(usages + " out of total " + total + " classes (%" + formatDouble(percent) + ") use " + version.toStringAddJavaVersionToo() + " class file version");
         }
     }
 
