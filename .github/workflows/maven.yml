@@ -61,21 +61,6 @@ jobs:
             -   name: Perform CodeQL Analysis
                 uses: github/codeql-action/analyze@main
 
-            -   name: Run Codacy Analysis CLI
-                uses: codacy/codacy-analysis-cli-action@1.1.0
-                with:
-                    project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-                    verbose: true
-                    output: results.sarif
-                    format: sarif
-                    gh-code-scanning-compat: true
-                    max-allowed-issues: 2147483647
-
-            -   name: Upload SARIF results file
-                uses: github/codeql-action/upload-sarif@main
-                with:
-                    sarif_file: results.sarif
-
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v2.2.2
                 with:
