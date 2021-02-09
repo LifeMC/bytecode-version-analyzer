@@ -46,6 +46,9 @@
         <sonar.organization>lifemc</sonar.organization>
 
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+
+        <!-- Required for reproducible builds -->
+        <project.build.outputTimestamp>2021-2-02T00:00:00Z</project.build.outputTimestamp>
     </properties>
 
     <dependencies>
@@ -299,7 +302,6 @@
                         <configuration>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <minimizeJar>true</minimizeJar>
-                            <outputDirectory>${project.basedir}</outputDirectory>
                             <artifactSet>
                                 <includes>
                                     <include>*:*</include>
