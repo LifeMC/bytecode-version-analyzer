@@ -12,7 +12,7 @@ requests. Collaborator is a person inside the core development team and has writ
 
 Step by step:
 
-* First, fork this project.
+* First, fork and clone this project.
     * Second, create a branch for your changes. (e.g: "fix-npe")
       This can be done easily using "git switch -c fix-npe". It will create a new branch based on the current branch and
       switch to it. If you are not on the main branch, you can switch to it using "git checkout main".
@@ -38,8 +38,7 @@ preferences</a> before making any contribution!**
 
 Step by step:
 
-* Clone this repository via your IDE or command-line. (git clone https://github.com/<organization or user>/<project>
-  .git)
+* Clone this (or your fork's) repository via your IDE or command-line. (git clone https://github.com/<organization or user\>/\<repository/project name\>.git)
 * Run mvnw.cmd verify if you are on Windows, or do ./mvnw verify from terminal if you are on Linux or macOS.
 
 # Properly testing the changes you made
