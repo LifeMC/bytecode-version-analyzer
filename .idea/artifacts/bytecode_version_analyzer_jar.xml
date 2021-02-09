@@ -1,0 +1,20 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="bytecode-version-analyzer:jar">
+    <output-path>$PROJECT_DIR$/target/</output-path>
+    <root id="archive" name="bytecode-version-analyzer.jar">
+      <element id="module-output" name="bytecode-version-analyzer" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/apache/commons/commons-lang3/3.11/commons-lang3-3.11.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/apache/maven/maven-model/3.6.3/maven-model-3.6.3.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/codehaus/plexus/plexus-utils/3.2.1/plexus-utils-3.2.1.jar" path-in-jar="/" />
+      <element id="directory" name="META-INF">
+        <element id="directory" name="maven">
+          <element id="directory" name="com.lifemcserver">
+            <element id="directory" name="bytecode-version-analyzer">
+              <element id="file-copy" path="$PROJECT_DIR$/pom.xml" />
+            </element>
+          </element>
+        </element>
+      </element>
+    </root>
+  </artifact>
+</component>

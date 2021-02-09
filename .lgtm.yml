@@ -1,7 +1,7 @@
 queries:
-  - include: "*"
+    -   include: "*"
 extraction:
-  java:
-    index:
-      build_command:
-        - mvn clean verify
+    java:
+        index:
+            build_command:
+                - mvn clean verify

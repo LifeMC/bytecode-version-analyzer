@@ -8,16 +8,19 @@
 | Default branch, nightly builds, development/alpha/beta releases*   | :ballot_box_with_check: |
 | Other branches or forked versions   | :x:                |
 
-*Official Nightly Builds by GitHub Actions are supported. However, they might not be stable and any issues with them can be delayed just before a stable GitHub release.
-Development/Alpha/Beta releases from GitHub Releases (those marked as "pre-releases") are also supported, but only if there is no stable release successing them.
+*Official Nightly Builds by GitHub Actions are supported. However, they might not be stable and any issues with them can
+be delayed just before a stable GitHub release. Development/Alpha/Beta releases from GitHub Releases (those marked as "
+pre-releases") are also supported, but only if there is no stable release succeeding them.
 
-We may also provide support to self-builds of default branch, i.e when build fails on a specific OS, or Java version.
+We may also provide support to self-builds of default branch, i.e. when build fails on a specific OS, or Java version.
 
 ## Reporting a Vulnerability
 
 Please do not report security vulnerabilities publicly. Contact us via `support@lifemcserver.com` instead.
 
-If you can't get response from us via email or you think the address is not usable (happens sometimes when we update MX records on our domain), please use Discord to use contact us via a private message instead.
-Our official organization Discord link is https://discord.gg/tmupwqn
+If you can't get response from us via email, or, you think the address is not usable (sometimes happens when we update MX
+records on our domain), please use Discord to use contact us via a private message instead. Our official organization
+Discord link is https://discord.gg/tmupwqn
 
-Do not use any other link provided. Do not open PRs publicly to fix security vulnerabilities, contact us, and we will fix it while mentioning you. You can also send a patch file if you have the solution already.
+Do not use any other link provided. Do not open PRs publicly to fix security vulnerabilities, contact us, and we will
+fix it while mentioning you. You can also send a patch file if you have the solution already.
