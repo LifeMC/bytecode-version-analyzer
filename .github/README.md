@@ -40,13 +40,24 @@ If you don't provide --print-if-above or --print-if-below arguments, it will onl
 
 You can find old libraries that compile with/into Java 6, or you can find for example libraries that compile into Java 11, or other versions.
 
-# Limitations/To-Do
+# Limitations/To-do
+
+## Not tested for
 
 - Classes from Multi-Release JARs are not tested.
 - Classes compiled for preview runtimes (--enable-preview) are not tested.
 
+## Limitations/notes
+
 - This tool will still take into account even if a class file is not used or loaded in run-time.
 - This not a tool to modify/update bytecode or class/jar files in any way.
+
+## To-do
+
+- [ ] Refactor code to make it more organized
+- [ ] Add tests
+- [ ] Test with preview (--enable-preview) versions and Multi-Release JARs
+- [ ] Option to print only packages with below/above specified version (i.e not every single class, reduces messages)
 
 # Security Policy
 
