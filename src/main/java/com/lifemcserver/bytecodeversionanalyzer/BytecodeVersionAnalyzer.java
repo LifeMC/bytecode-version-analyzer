@@ -280,7 +280,7 @@ final class BytecodeVersionAnalyzer {
      *
      * - Creating the JAR file with this method,
      *
-     * - Using the new versionedStream method instead of entries to loop/process for each entry,
+     * - Using the new versionedStream method instead of entries to loop/process for each entry (Java 10+ unfortunately),
      * - Ignore entries on META-INF/versions,
      *
      * - Then do {@code entry = jar.getJarEntry(entry.getName());}. This will get the entry with correct release
@@ -288,7 +288,6 @@ final class BytecodeVersionAnalyzer {
      * return the same entry.
      *
      * @param path The path of the JAR file.
-     *
      * @return A new JAR file object with Multi-Release JAR support.
      */
     private static final JarFile newJarFile(final String path) throws IOException {
@@ -306,7 +305,6 @@ final class BytecodeVersionAnalyzer {
      * Formats a double to remove extra verbose numbers and only show 2 numbers after the dot.
      *
      * @param number The double number.
-     *
      * @return The non-verbose, human-friendly read-able double.
      */
     private static final String formatDouble(final double number) {
