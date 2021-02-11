@@ -600,6 +600,7 @@ final class BytecodeVersionAnalyzer {
      * @param error The error to handle and print.
      * @return An empty exception that can be thrown to stop the code execution.
      */
+    @SuppressWarnings("SameReturnValue")
     private static final RuntimeException handleError(final Throwable error) {
         error();
         error("An error occurred when running Bytecode Version Analyzer.");
