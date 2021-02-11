@@ -26,10 +26,10 @@ import java.util.zip.ZipFile;
 
 /**
  * A Java Bytecode Version Analyzer CLI program.
- *
+ * <p>
  * Can show the Java class file version target of the given class,
  * classes from a JAR or ZIP archive.
- *
+ * <p>
  * It can display a metric like % classes use Java 8 or such,
  * or warn legacy/bleeding edge ones, too.
  */
@@ -238,6 +238,7 @@ final class BytecodeVersionAnalyzer {
 
     private static final MethodHandle findVersionedStream() {
         try {
+            // does not exist on JDK 8 obviously, we must suppress it.
             //noinspection JavaLangInvokeHandleSignature
             return MethodHandles.publicLookup().findVirtual(JarFile.class, "versionedStream", MethodType.methodType(Stream.class));
         } catch (final NoSuchMethodException | IllegalAccessException e) {
@@ -271,7 +272,20 @@ final class BytecodeVersionAnalyzer {
     }
 
     /**
-     * Creates a new JAR file object with Multi-Release JAR support from the given path.
+     * Creates a new {@link JarFile} object with Multi-Release JAR support if available from the given path.
+     * Returns a normal {@link JarFile} object without Multi-Release JAR support if it is not available.
+     *
+     * It should return Multi-Release supported instance on Java 9 and above. However, you still need to do few
+     * things if you want to process each entry in a JAR with correct Multi-Release support:
+     *
+     * - Creating the JAR file with this method,
+     *
+     * - Using the new versionedStream method instead of entries to loop/process for each entry,
+     * - Ignore entries on META-INF/versions,
+     *
+     * - Then do {@code entry = jar.getJarEntry(entry.getName());}. This will get the entry with correct release
+     * depending on the JVM that is running the code. If on a non Multi-Release constructed JarFile instance, it will
+     * return the same entry.
      *
      * @param path The path of the JAR file.
      *
@@ -313,15 +327,20 @@ final class BytecodeVersionAnalyzer {
     private static final <T> Stream<T> enumerationAsStream(final Enumeration<T> e) {
         return StreamSupport.stream(
             new Spliterators.AbstractSpliterator<T>(Long.MAX_VALUE, Spliterator.ORDERED) {
+                @Override
                 public final boolean tryAdvance(final Consumer<? super T> action) {
-                    if(e.hasMoreElements()) {
+                    if (e.hasMoreElements()) {
                         action.accept(e.nextElement());
                         return true;
                     }
                     return false;
                 }
+
+                @Override
                 public final void forEachRemaining(final Consumer<? super T> action) {
-                    while(e.hasMoreElements()) action.accept(e.nextElement());
+                    while (e.hasMoreElements()) {
+                        action.accept(e.nextElement());
+                    }
                 }
             }, false);
     }
@@ -576,12 +595,11 @@ final class BytecodeVersionAnalyzer {
     /**
      * Handles an abnormal error case, pointing the user to report it, printing the error
      * and returning an empty exception that can be thrown to stop the code execution.
-     *
+     * <p>
      * The type of the exception returned can be changed, as such, the return type is
      * just {@link RuntimeException}.
      *
-     * @param error The error the handle and print.
-     *
+     * @param error The error to handle and print.
      * @return An empty exception that can be thrown to stop the code execution.
      */
     private static final RuntimeException handleError(final Throwable error) {
