@@ -4,4 +4,4 @@ extraction:
     java:
         index:
             build_command:
-                - mvn clean verify -T 1C -B -e
+                - mvn clean verify --threads 1C --batch-mode --errors
