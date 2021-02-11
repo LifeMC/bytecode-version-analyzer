@@ -5,8 +5,8 @@ reading before contributing.
 
 # Difference between Contributor and Collaborator
 
-Contributor is a person outside the core development team and contributed to this repository via making pull
-requests. Collaborator is a person inside the core development team and has write access to this repository.
+Contributor is a person outside the core development team and contributed to this repository via making pull requests.
+Collaborator is a person inside the core development team and has write access to this repository.
 
 # Contributing to this repository
 
@@ -38,7 +38,8 @@ preferences</a> before making any contribution!**
 
 Step by step:
 
-* Clone this (or your fork's) repository via your IDE or command-line. (git clone https://github.com/<organization or user\>/\<repository/project name\>.git)
+* Clone this (or your fork's) repository via your IDE or command-line. (git clone https://github.com/<organization or
+  user\>/\<repository/project name\>.git)
 * Run mvnw.cmd verify if you are on Windows, or do ./mvnw verify from terminal if you are on Linux or macOS.
 
 # Properly testing the changes you made
