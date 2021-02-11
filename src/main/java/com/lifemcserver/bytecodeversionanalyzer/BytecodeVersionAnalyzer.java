@@ -410,84 +410,6 @@ final class BytecodeVersionAnalyzer {
         return new ClassFileVersion(major, minor);
     }
 
-    private static final class ClassFileVersion {
-        private static final Pattern dot = Pattern.compile(".", Pattern.LITERAL);
-
-        private final int major;
-        private final int minor;
-
-        private ClassFileVersion(final int major, final int minor) {
-            this.major = major;
-            this.minor = minor;
-        }
-
-        /**
-         * Checks if this class file version is higher than the given one.
-         *
-         * @param other The other class file version.
-         *
-         * @return True if this class file version is higher either in major or minor than
-         * the given one, false otherwise. (same or lower)
-         */
-        private final boolean isHigherThan(final ClassFileVersion other) {
-            if (major > other.major)
-                return true;
-            return major == other.major && minor > other.minor;
-        }
-
-        private final int toJavaVersion() {
-            return major - 44;
-        }
-
-		private static final ClassFileVersion fromJavaVersion(final String javaVersion) {
-			return fromBytecodeVersionString((Integer.parseInt(javaVersion) + 44) + ".0");
-		}
-
-        @Override
-        public final String toString() {
-            return major + "." + minor;
-        }
-
-        private final String toStringAddJavaVersionToo() {
-            return toString() + " (Java " + toJavaVersion() + ")";
-        }
-
-        private static  final ClassFileVersion fromString(final String string) {
-            try {
-                return fromBytecodeVersionString(string);
-            } catch (final IllegalArgumentException e) {
-                return fromJavaVersion(string);
-            }
-        }
-
-        private static final ClassFileVersion fromBytecodeVersionString(final String string) {
-            final String[] splitByDot = dot.split(string);
-
-            if (splitByDot.length != 2) {
-                throw new IllegalArgumentException("not in major.minor format: " + string);
-            }
-
-            final int major = Integer.parseInt(splitByDot[0]);
-            final int minor = Integer.parseInt(splitByDot[1]);
-
-            return new ClassFileVersion(major, minor);
-        }
-
-        @Override
-        public final boolean equals(final Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ClassFileVersion)) return false;
-
-            final ClassFileVersion version = (ClassFileVersion) o;
-            return major == version.major && minor == version.minor;
-        }
-
-        @Override
-        public final int hashCode() {
-            return Objects.hash(major, minor);
-        }
-    }
-
     /**
      * Gets the version from the attached maven pom file to the JAR.
      * Returns "Unknown-Version" if it can't get the version.
@@ -577,20 +499,6 @@ final class BytecodeVersionAnalyzer {
     }
 
     /**
-     * A {@link RuntimeException} that is only thrown for the sole purpose of stopping the code execution.
-     *
-     * It has a null message, null cause, suppression and stack trace disabled. Constructor is private to
-     * promote usage of the singleton instance. Since it has no stack, creating new instances are unnecessary.
-     */
-    private static final class StopCodeExecution extends RuntimeException {
-        public static final StopCodeExecution INSTANCE = new StopCodeExecution();
-
-        private StopCodeExecution() {
-            super(null, null, false, false);
-        }
-    }
-
-    /**
      * Handles an abnormal error case, pointing the user to report it, printing the error
      * and returning an empty exception that can be thrown to stop the code execution.
      * <p>
@@ -661,5 +569,96 @@ final class BytecodeVersionAnalyzer {
      */
     private static final void error(final String message) {
         System.err.println(errorPrefix + message);
+    }
+
+    private static final class ClassFileVersion {
+        private static final Pattern dot = Pattern.compile(".", Pattern.LITERAL);
+
+        private final int major;
+        private final int minor;
+
+        private ClassFileVersion(final int major, final int minor) {
+            this.major = major;
+            this.minor = minor;
+        }
+
+        private static final ClassFileVersion fromJavaVersion(final String javaVersion) {
+            return fromBytecodeVersionString((Integer.parseInt(javaVersion) + 44) + ".0");
+        }
+
+        private static final ClassFileVersion fromString(final String string) {
+            try {
+                return fromBytecodeVersionString(string);
+            } catch (final IllegalArgumentException e) {
+                return fromJavaVersion(string);
+            }
+        }
+
+        private static final ClassFileVersion fromBytecodeVersionString(final String string) {
+            final String[] splitByDot = dot.split(string);
+
+            if (splitByDot.length != 2) {
+                throw new IllegalArgumentException("not in major.minor format: " + string);
+            }
+
+            final int major = Integer.parseInt(splitByDot[0]);
+            final int minor = Integer.parseInt(splitByDot[1]);
+
+            return new ClassFileVersion(major, minor);
+        }
+
+        /**
+         * Checks if this class file version is higher than the given one.
+         *
+         * @param other The other class file version.
+         * @return True if this class file version is higher either in major or minor than
+         * the given one, false otherwise. (same or lower)
+         */
+        private final boolean isHigherThan(final ClassFileVersion other) {
+            if (major > other.major)
+                return true;
+            return major == other.major && minor > other.minor;
+        }
+
+        private final int toJavaVersion() {
+            return major - 44;
+        }
+
+        @Override
+        public final String toString() {
+            return major + "." + minor;
+        }
+
+        private final String toStringAddJavaVersionToo() {
+            return toString() + " (Java " + toJavaVersion() + ")";
+        }
+
+        @Override
+        public final boolean equals(final Object o) {
+            if (this == o) return true;
+            if (!(o instanceof ClassFileVersion)) return false;
+
+            final ClassFileVersion version = (ClassFileVersion) o;
+            return major == version.major && minor == version.minor;
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(major, minor);
+        }
+    }
+
+    /**
+     * A {@link RuntimeException} that is only thrown for the sole purpose of stopping the code execution.
+     * <p>
+     * It has a null message, null cause, suppression and stack trace disabled. Constructor is private to
+     * promote usage of the singleton instance. Since it has no stack, creating new instances are unnecessary.
+     */
+    private static final class StopCodeExecution extends RuntimeException {
+        private static final StopCodeExecution INSTANCE = new StopCodeExecution();
+
+        private StopCodeExecution() {
+            super(null, null, false, false);
+        }
     }
 }
