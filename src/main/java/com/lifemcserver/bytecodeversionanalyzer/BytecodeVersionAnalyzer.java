@@ -95,6 +95,10 @@ final class BytecodeVersionAnalyzer {
      */
     private static Model model;
     /**
+     * Determines if debug messages should be printed.
+     */
+    private static boolean debug;
+    /**
      * The versionedStream method of JarFile when on Java 10 or above. Null otherwise.
      */
     private static final MethodHandle versionedStream = findVersionedStream();
@@ -216,6 +220,12 @@ final class BytecodeVersionAnalyzer {
                 continue;
             }
 
+            if (arg.startsWith("--debug")) {
+                debug = true;
+                info("note: debug mode is enabled");
+                continue;
+            }
+
             archivePath.append(arg);
 
             if (i < argsLength - 1)
@@ -294,6 +304,9 @@ final class BytecodeVersionAnalyzer {
             //noinspection JavaLangInvokeHandleSignature
             return MethodHandles.publicLookup().findVirtual(JarFile.class, "versionedStream", MethodType.methodType(Stream.class));
         } catch (final NoSuchMethodException e) {
+            if (debug) {
+                warning("JarFile#versionedStream is not available (Java 10+)");
+            }
             return null;
         } catch (final IllegalAccessException e) {
             throw handleError(e);
@@ -316,6 +329,9 @@ final class BytecodeVersionAnalyzer {
             final MethodHandle runtimeVersionMethod = MethodHandles.publicLookup().findStatic(JarFile.class, "runtimeVersion", MethodType.methodType(Class.forName("java.lang.Runtime$Version")));
             return runtimeVersionMethod.invoke();
         } catch (final ClassNotFoundException e) {
+            if (debug) {
+                warning("JarFile#runtimeVersion is not available (Java 9+)");
+            }
             return null;
         } catch (final Throwable e) {
             throw handleError(e);
@@ -332,8 +348,12 @@ final class BytecodeVersionAnalyzer {
      * @return The JarFile constructor with Multi-Release support.
      */
     private static final MethodHandle findJarFileMultiReleaseConstructor() {
-        if (runtimeVersion == null)
+        if (runtimeVersion == null) {
+            if (debug) {
+                warning("JarFile constructor with Multi-Release support is not available because a dependency of it is not available (Java 9+, depends on JarFile#runtimeVersion)");
+            }
             return null;
+        }
         try {
             // does not exist on JDK 8 obviously, we must suppress it.
             //noinspection JavaLangInvokeHandleSignature
