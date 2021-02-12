@@ -30,7 +30,7 @@ v0.1-SNAPSHOT:
 ## Showing version of a single class file
 
 Specifying a class name as an argument will look for a class file in the current directory and print the version of it.
-Specifying a full path of class file is also supported.
+Specifying a full path of class files is also supported.
 
 ![image](https://user-images.githubusercontent.com/24778409/107349723-9bd7f100-6ad9-11eb-811a-3f826094700b.png)
 
@@ -61,7 +61,7 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
   or above. This because JarFile#versionedStream is added in Java 10.
 
   However, you can still get partial support on Java 9. This because basic versioned JarFile support is added in Java
-  9. (The new JarFile constructor accepting Runtime.Version objects.)
+    9. (The new JarFile constructor accepting Runtime.Version objects.)
 
 ## Not tested for
 
@@ -77,7 +77,8 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 - [ ] Refactor code to make it more organized
 - [ ] Add tests
 - [ ] Test with the preview (--enable-preview) versions
-- [ ] Option to print only packages with the below/above specified version (i.e. not every single class, reduces messages)
+- [ ] Option to print only packages with below/above the specified version (i.e. not every single class, reduces
+  messages)
 - [ ] Use a logger to log messages/errors
 
 # Security Policy
