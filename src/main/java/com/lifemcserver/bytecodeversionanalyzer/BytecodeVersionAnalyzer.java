@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.time.Year;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -123,6 +124,16 @@ final class BytecodeVersionAnalyzer {
      * @param args The arguments array passed by the JVM to indicate command line arguments.
      */
     public static final void main(final String[] args) {
+        final Timing timing = new Timing();
+        timing.start();
+
+        runCli(args);
+
+        timing.finish();
+        info("Took " + timing);
+    }
+
+    private static final void runCli(final String[] args) {
         loadPom();
 
         if (model == null) {
@@ -729,6 +740,67 @@ final class BytecodeVersionAnalyzer {
     }
 
     /**
+     * Used for timing something, i.e a long operation.
+     * Or a short one, for analytic purposes.
+     */
+    private static final class Timing {
+        /**
+         * The start time.
+         */
+        @SuppressWarnings("FieldNotUsedInToString")
+        private long startTime;
+        /**
+         * The end time.
+         */
+        @SuppressWarnings("FieldNotUsedInToString")
+        private long finishTime;
+
+        /**
+         * Starts the timing.
+         */
+        private final void start() {
+            startTime = System.nanoTime();
+        }
+
+        /**
+         * Resets the timing to current time,
+         * calls both {@link Timing#start()} and {@link Timing#finish()}.
+         */
+        private final void reset() {
+            start();
+            finish();
+        }
+
+        /**
+         * Stops the timing.
+         */
+        private final void finish() {
+            finishTime = System.nanoTime();
+        }
+
+        /**
+         * Gets the elapsed time in the given unit.
+         *
+         * @param unit The unit of the return value.
+         * @return The elapsed time in the requested unit.
+         */
+        private final long getElapsedTime(final TimeUnit unit) {
+            return unit.convert(finishTime - startTime, TimeUnit.NANOSECONDS);
+        }
+
+        /**
+         * Returns the string representation of this timing.
+         */
+        @Override
+        public final String toString() {
+            final long elapsedTime = getElapsedTime(TimeUnit.MILLISECONDS);
+
+            //noinspection StringConcatenationMissingWhitespace
+            return elapsedTime + "ms";
+        }
+    }
+
+    /**
      * Represents a class file version, with a major and minor version.
      */
     private static final class ClassFileVersion {
@@ -903,6 +975,7 @@ final class BytecodeVersionAnalyzer {
      * It has a null message, null cause, suppression and stack trace disabled. Constructor is private to
      * promote usage of the singleton instance. Since it has no stack, creating new instances are unnecessary.
      */
+    @SuppressWarnings("SerializableHasSerializationMethods")
     private static final class StopCodeExecution extends RuntimeException {
         /**
          * A singleton to use instead of creating new objects every time.

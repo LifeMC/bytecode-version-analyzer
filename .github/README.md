@@ -60,7 +60,7 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
   However, you can still get partial support on Java 9. This because basic versioned JarFile support is added in Java
     9. (The new JarFile constructor accepting Runtime.Version objects.)
-    
+
 - Preview class files (classes compiled with --enable-preview) are also supported.
 
 # Limitations/To-do
