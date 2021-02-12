@@ -86,7 +86,7 @@ final class BytecodeVersionAnalyzer {
         ClassFileVersion printIfBelow = null;
         ClassFileVersion printIfAbove = null;
 
-        StringBuilder archivePath = new StringBuilder();
+        final StringBuilder archivePath = new StringBuilder();
 
         boolean printedAtLeastOneVersion = false;
         String startOfArgumentValue = null;
@@ -111,6 +111,8 @@ final class BytecodeVersionAnalyzer {
 
                 try {
                     version = getClassFileVersion(file);
+                } catch (final FileNotFoundException e) {
+                    throw handleError(e); // We checked that the file exists.. How?
                 } catch (final IOException e) {
                     error("error when processing class: " + e.getMessage());
                     continue;
@@ -241,8 +243,10 @@ final class BytecodeVersionAnalyzer {
             // does not exist on JDK 8 obviously, we must suppress it.
             //noinspection JavaLangInvokeHandleSignature
             return MethodHandles.publicLookup().findVirtual(JarFile.class, "versionedStream", MethodType.methodType(Stream.class));
-        } catch (final NoSuchMethodException | IllegalAccessException e) {
+        } catch (final NoSuchMethodException e) {
             return null;
+        } catch (final IllegalAccessException e) {
+            throw handleError(e);
         }
     }
 
@@ -274,15 +278,15 @@ final class BytecodeVersionAnalyzer {
     /**
      * Creates a new {@link JarFile} object with Multi-Release JAR support if available from the given path.
      * Returns a normal {@link JarFile} object without Multi-Release JAR support if it is not available.
-     *
+     * <p>
      * It should return Multi-Release supported instance on Java 9 and above. However, you still need to do few
      * things if you want to process each entry in a JAR with correct Multi-Release support:
-     *
+     * <p>
      * - Creating the JAR file with this method,
-     *
+     * <p>
      * - Using the new versionedStream method instead of entries to loop/process for each entry (Java 10+ unfortunately),
      * - Ignore entries on META-INF/versions,
-     *
+     * <p>
      * - Then do {@code entry = jar.getJarEntry(entry.getName());}. This will get the entry with correct release
      * depending on the JVM that is running the code. If on a non Multi-Release constructed JarFile instance, it will
      * return the same entry.
@@ -515,7 +519,6 @@ final class BytecodeVersionAnalyzer {
         error("Please report the error below by creating a new issue on " + getIssuesUrl());
         error();
 
-        // TODO Use a logger
         error.printStackTrace();
 
         // Can be thrown to stop the code execution.
