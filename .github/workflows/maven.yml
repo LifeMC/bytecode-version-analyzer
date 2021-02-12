@@ -52,7 +52,7 @@ jobs:
                 uses: github/codeql-action/init@main
                 with:
                     languages: java
-                    queries: security-extended,security-and-quality,github/codeql/java/ql/src/codeql-suites/java-lgtm-full.qls@main
+                    # queries: security-extended,security-and-quality,github/codeql/java/ql/src/codeql-suites/java-lgtm-full.qls@main
 
             -   name: Build with Maven
                 env:

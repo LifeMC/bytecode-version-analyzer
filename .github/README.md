@@ -63,16 +63,13 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
 - Preview class files (classes compiled with --enable-preview) are also supported.
 
+- This not a tool to modify/update bytecode or class/jar files in any way.
+
 # Limitations/To-do
 
-## Not tested for
-
-- Classes compiled for preview runtimes (--enable-preview) are not tested.
-
-## Limitations/notes
+## Limitations
 
 - This tool will still take into account even if a class file is not used or loaded in run-time.
-- This not a tool to modify/update bytecode or class/jar files in any way.
 
 ## To-do
 
