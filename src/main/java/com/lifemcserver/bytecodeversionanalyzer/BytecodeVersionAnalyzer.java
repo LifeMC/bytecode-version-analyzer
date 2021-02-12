@@ -262,7 +262,7 @@ final class BytecodeVersionAnalyzer {
             counter.remove(version);
             counter.put(version, amount + 1);
 
-            if (version.minor == PREVIEW_CLASS_FILE_MINOR_VERSION) {
+            if (version.isPreview()) {
                 warning("class " + clazz + " uses preview language features (" + version + ", Java " + version.toJavaVersion() + " with preview language features)");
             }
 
@@ -820,6 +820,16 @@ final class BytecodeVersionAnalyzer {
         }
 
         /**
+         * Checks if this class file version is a preview class file version.
+         * (meaning it is compiled by using --enable-preview argument and can use preview features.)
+         *
+         * @return True if this class file version is a preview class file version, false otherwise.
+         */
+        private final boolean isPreview() {
+            return minor == PREVIEW_CLASS_FILE_MINOR_VERSION;
+        }
+
+        /**
          * Returns the Java version equivalent of this {@link ClassFileVersion}.
          *
          * @return The Java version equivalent of this {@link ClassFileVersion}.
@@ -854,7 +864,7 @@ final class BytecodeVersionAnalyzer {
          * The return value can not be reverted back to {@link ClassFileVersion} using standard methods.
          */
         private final String toStringAddJavaVersionToo() {
-            return this + " (Java " + toJavaVersion() + ")";
+            return this + " (Java " + toJavaVersion() + (isPreview() ? ", with preview features enabled)" : ")");
         }
 
         /**
