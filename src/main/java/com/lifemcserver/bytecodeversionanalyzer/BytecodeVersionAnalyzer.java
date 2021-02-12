@@ -250,6 +250,14 @@ final class BytecodeVersionAnalyzer {
         }
     }
 
+    /**
+     * Finds the result of execution for JarFile#runtimeVersion method when on Java 9 or above.
+     * <p>
+     * Returns null if not available (i.e. Java 8 or below)
+     *
+     * @return The result of execution for JarFile#runtimeVersion method.
+     * It will be null if on Java 8 or below or Runtime#Version when on Java 9 or above.
+     */
     private static final Object findRuntimeVersion() {
         try {
             // does not exist on JDK 8 obviously, we must suppress it.
@@ -322,6 +330,18 @@ final class BytecodeVersionAnalyzer {
         }
     }
 
+    /**
+     * Returns the percentage of the current to the total value.
+     * <p>
+     * For example, if you enter 6 as current and 10 as total, it will return 60.
+     * <p>
+     * Format the returning double with {@link BytecodeVersionAnalyzer#twoNumbersAfterDotFormat} if
+     * you want a non-exact precise but human-readable value.
+     *
+     * @param current The current value.
+     * @param total   The total value.
+     * @return The percentage of the current to the total value.
+     */
     private static final double percentOf(final double current, final double total) {
         return (current / total) * 100.00D;
     }
@@ -397,6 +417,15 @@ final class BytecodeVersionAnalyzer {
         return getClassFileVersion(new FileInputStream(file));
     }
 
+    /**
+     * Gets the class file version of a Java class from an {@link InputStream}.
+     * Useful with {@link JarFile#getInputStream(ZipEntry)} and such methods, since it does not require a file.
+     *
+     * @param in The {@link InputStream} to read from.
+     * @return The class file version read from the {@link InputStream}.
+     * @throws IOException If the file is not a valid Java class or contain
+     *                     illegal major / minor version specifications.
+     */
     private static final ClassFileVersion getClassFileVersion(final InputStream in) throws IOException {
         final DataInputStream data = new DataInputStream(in);
 
@@ -448,6 +477,10 @@ final class BytecodeVersionAnalyzer {
         return model.getIssueManagement().getUrl();
     }
 
+    /**
+     * Loads the pom.xml file either from the content root (works when running/building from IDE)
+     * or the META-INF/maven directory, using the {@link BytecodeVersionAnalyzer#groupId} and {@link BytecodeVersionAnalyzer#artifactId}.
+     */
     private static final void loadPom() {
         InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/" + groupId + "/" + artifactId + "/pom.xml");
 
@@ -574,17 +607,41 @@ final class BytecodeVersionAnalyzer {
         System.err.println(errorPrefix + message);
     }
 
+    /**
+     * Represents a class file version, with a major and minor version.
+     */
     private static final class ClassFileVersion {
-        private static final Pattern dot = Pattern.compile(".", Pattern.LITERAL);
+        /**
+         * The dot pattern to split inputs from it.
+         */
+        private static final Pattern dotPattern = Pattern.compile(".", Pattern.LITERAL);
 
+        /**
+         * The major version of the class file.
+         */
         private final int major;
+        /**
+         * The minor version of the class file.
+         */
         private final int minor;
 
+        /**
+         * Creates a new {@link ClassFileVersion} object with the given major and minor version values.
+         *
+         * @param major The major version of the new {@link ClassFileVersion} object.
+         * @param minor The minor version of the new {@link ClassFileVersion} object.
+         */
         private ClassFileVersion(final int major, final int minor) {
             this.major = major;
             this.minor = minor;
         }
 
+        /**
+         * Creates a new {@link ClassFileVersion} from the given Java version.
+         *
+         * @param javaVersion The Java version to convert into {@link ClassFileVersion}.
+         * @return The {@link ClassFileVersion} representing the given Java version.
+         */
         private static final ClassFileVersion fromJavaVersion(final String javaVersion) {
             return fromBytecodeVersionString((Integer.parseInt(javaVersion) + 44) + ".0");
         }
@@ -623,19 +680,50 @@ final class BytecodeVersionAnalyzer {
             return major == other.major && minor > other.minor;
         }
 
+        /**
+         * Returns the Java version equivalent of this {@link ClassFileVersion}.
+         *
+         * @return The Java version equivalent of this {@link ClassFileVersion}.
+         */
         private final int toJavaVersion() {
             return major - 44;
         }
 
+        /**
+         * Converts this {@link ClassFileVersion} to a string.
+         * <p>
+         * Uses major.minor format. The returned value can be converted back using {@link ClassFileVersion#fromBytecodeVersionString(String)}.
+         * <p>
+         * Use {@link ClassFileVersion#toJavaVersion()} instead if you need the Java version instead of bytecode version.
+         *
+         * @return The bytecode version string representing this {@link ClassFileVersion}.
+         */
         @Override
         public final String toString() {
             return major + "." + minor;
         }
 
+        /**
+         * Converts this {@link ClassFileVersion} to a string, adding both bytecode and Java version.
+         * <p>
+         * Uses {@link ClassFileVersion#toString()} and {@link ClassFileVersion#toJavaVersion()}.
+         * <p>
+         * The Java version will be added to the result of {@link ClassFileVersion#toString()} with a space
+         * and parentheses prefixed with "Java".
+         *
+         * @return The string representation of this {@link ClassFileVersion} including both bytecode version and the Java version.
+         * The return value can not be reverted back to {@link ClassFileVersion} using standard methods.
+         */
         private final String toStringAddJavaVersionToo() {
             return toString() + " (Java " + toJavaVersion() + ")";
         }
 
+        /**
+         * Checks for equality with another {@link ClassFileVersion}.
+         *
+         * @param obj The other {@link ClassFileVersion} to check equality.
+         * @return True if both are equal in major & minor, false otherwise.
+         */
         @Override
         public final boolean equals(final Object o) {
             if (this == o) return true;
@@ -645,6 +733,11 @@ final class BytecodeVersionAnalyzer {
             return major == version.major && minor == version.minor;
         }
 
+        /**
+         * Returns the unique hashcode of this {@link ClassFileVersion}.
+         *
+         * @return The unique hashcode of this {@link ClassFileVersion}.
+         */
         @Override
         public final int hashCode() {
             return Objects.hash(major, minor);
@@ -658,8 +751,18 @@ final class BytecodeVersionAnalyzer {
      * promote usage of the singleton instance. Since it has no stack, creating new instances are unnecessary.
      */
     private static final class StopCodeExecution extends RuntimeException {
+        /**
+         * A singleton to use instead of creating new objects every time.
+         */
         private static final StopCodeExecution INSTANCE = new StopCodeExecution();
+        /**
+         * The serial version UUID for this exception, for supporting serialization.
+         */
+        private static final long serialVersionUID = -6852778657371379400L;
 
+        /**
+         * A private constructor to promote usage of the singleton {@link StopCodeExecution#INSTANCE}.
+         */
         private StopCodeExecution() {
             super(null, null, false, false);
         }
