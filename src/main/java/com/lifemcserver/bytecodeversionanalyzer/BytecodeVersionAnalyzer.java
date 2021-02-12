@@ -22,6 +22,7 @@ import java.util.jar.JarFile;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -56,11 +57,60 @@ final class BytecodeVersionAnalyzer {
     /**
      * The decimal format for two numbers at most after the first dot in non-integer/long numbers.
      */
-    private static final ThreadLocal<DecimalFormat> twoNumbersAfterDotFormat = ThreadLocal.withInitial(TwoNumbersAfterDotDecimalFormat::new);
+    private static final ThreadLocal<DecimalFormat> twoNumbersAfterDotFormat = ThreadLocal.withInitial(BytecodeVersionAnalyzer::getTwoNumbersAfterDotFormat);
+    /**
+     * The result of JarFile#runtimeVersion method when on Java 9 or above. Null otherwise.
+     */
+    private static final Object runtimeVersion;
+    /**
+     * The constructor of JarFile to enable Multi-Release JAR support when on Java 9 or above. Null otherwise.
+     */
+    private static final MethodHandle jarFileMultiReleaseConstructor;
+    /**
+     * A preview class files minor version is always this value.
+     */
+    private static final int PREVIEW_CLASS_FILE_MINOR_VERSION = 65535;
+    /**
+     * Identifier for Java class files. Classes do not contain this value are invalid.
+     */
+    private static final int JAVA_CLASS_FILE_IDENTIFIER = 0xCAFEBABE;
+    /**
+     * Java class file versions start from this value. Class file versions below this value
+     * should not be expected and historically, they are probably test versions or from the Oak language. (Java's root)
+     * <p>
+     * For transforming class file versions into Java versions, class file version - this constant's value can
+     * be assumed to be correct. For vice versa, java version + this constant value can be assumed to be correct.
+     */
+    private static final int JAVA_CLASS_FILE_VERSION_START = 44;
+    /**
+     * The magic number used for hash code calculations.
+     */
+    private static final int HASH_CODE_MAGIC_NUMBER = 31;
+    /**
+     * The one hundred number with precision as a double.
+     */
+    private static final double ONE_HUNDRED = 100.00D;
     /**
      * The parsed model object for pom file, for getting the version and other information.
      */
-    private static Model model = null;
+    private static Model model;
+    /**
+     * The versionedStream method of JarFile when on Java 10 or above. Null otherwise.
+     */
+    private static final MethodHandle versionedStream = findVersionedStream();
+
+    static {
+        // In-block to guarantee order of execution. Tools such as IntelliJ can re-arrange field order.
+        runtimeVersion = findRuntimeVersion();
+        jarFileMultiReleaseConstructor = findJarFileMultiReleaseConstructor();
+    }
+
+    /**
+     * Private constructor avoid creating new instances.
+     */
+    private BytecodeVersionAnalyzer() {
+        throw new UnsupportedOperationException("Static only class");
+    }
 
     /**
      * Called by the JVM when the program is double clicked or used from the command line.
@@ -202,6 +252,10 @@ final class BytecodeVersionAnalyzer {
             counter.remove(version);
             counter.put(version, amount + 1);
 
+            if (version.minor == PREVIEW_CLASS_FILE_MINOR_VERSION) {
+                warning("class " + clazz + " uses preview language features (" + version + ", Java " + version.toJavaVersion() + " with preview language features)");
+            }
+
             if (printIfBelow != null) {
                 if (printIfBelow.isHigherThan(version) && (filter == null || clazz.contains(filter))) {
                     warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is below specified (" + printIfBelow + ", Java " + printIfBelow.toJavaVersion() + ")");
@@ -227,17 +281,13 @@ final class BytecodeVersionAnalyzer {
         }
     }
 
-    private static final Object runtimeVersion;
-    private static final MethodHandle jarFileMultiReleaseConstructor;
-
-    private static final MethodHandle versionedStream = findVersionedStream();
-
-    static {
-        // In-block to guarantee order of execution. Tools such as IntelliJ can re-arrange field order.
-        runtimeVersion = findRuntimeVersion();
-        jarFileMultiReleaseConstructor = findConstructor();
-    }
-
+    /**
+     * Finds the JarFile#versionedStream method when on Java 10 or above.
+     * <p>
+     * Returns null if not available (i.e. Java 8 or below)
+     *
+     * @return The versionedStream {@link MethodHandle}.
+     */
     private static final MethodHandle findVersionedStream() {
         try {
             // does not exist on JDK 8 obviously, we must suppress it.
@@ -259,6 +309,7 @@ final class BytecodeVersionAnalyzer {
      * It will be null if on Java 8 or below or Runtime#Version when on Java 9 or above.
      */
     private static final Object findRuntimeVersion() {
+        //noinspection OverlyBroadCatchBlock
         try {
             // does not exist on JDK 8 obviously, we must suppress it.
             //noinspection JavaLangInvokeHandleSignature
@@ -271,7 +322,16 @@ final class BytecodeVersionAnalyzer {
         }
     }
 
-    private static final MethodHandle findConstructor() {
+    /**
+     * Finds the constructor of JarFile with Multi-Release support when on Java 9 or above.
+     * <p>
+     * Returns null if not available (i.e. Java 8 or below)
+     * <p>
+     * Note: In order to make this work, runtimeVersion variable should not be null.
+     *
+     * @return The JarFile constructor with Multi-Release support.
+     */
+    private static final MethodHandle findJarFileMultiReleaseConstructor() {
         if (runtimeVersion == null)
             return null;
         try {
@@ -323,11 +383,18 @@ final class BytecodeVersionAnalyzer {
         return twoNumbersAfterDotFormat.get().format(number);
     }
 
-    private static final class TwoNumbersAfterDotDecimalFormat extends DecimalFormat {
-        public TwoNumbersAfterDotDecimalFormat() {
-            super("##.##");
-            setRoundingMode(RoundingMode.DOWN);
-        }
+    /**
+     * Returns a new {@link DecimalFormat} that removes verbose precision from floating point numbers.
+     * <p>
+     * It only allows maximum of two numbers after the dot.
+     *
+     * @return A new {@link DecimalFormat} that removes verbose precision from floating point numbers.
+     */
+    private static final DecimalFormat getTwoNumbersAfterDotFormat() {
+        final DecimalFormat format = new DecimalFormat("##.##");
+        format.setRoundingMode(RoundingMode.DOWN);
+
+        return format;
     }
 
     /**
@@ -343,30 +410,37 @@ final class BytecodeVersionAnalyzer {
      * @return The percentage of the current to the total value.
      */
     private static final double percentOf(final double current, final double total) {
-        return (current / total) * 100.00D;
+        return (current / total) * ONE_HUNDRED;
     }
 
-    private static final <T> Stream<T> enumerationAsStream(final Enumeration<T> e) {
-        return StreamSupport.stream(
-            new Spliterators.AbstractSpliterator<T>(Long.MAX_VALUE, Spliterator.ORDERED) {
-                @Override
-                public final boolean tryAdvance(final Consumer<? super T> action) {
-                    if (e.hasMoreElements()) {
-                        action.accept(e.nextElement());
-                        return true;
-                    }
-                    return false;
-                }
-
-                @Override
-                public final void forEachRemaining(final Consumer<? super T> action) {
-                    while (e.hasMoreElements()) {
-                        action.accept(e.nextElement());
-                    }
-                }
-            }, false);
+    /**
+     * Converts an {@link Enumeration} to a {@link Stream}.
+     *
+     * @param enumeration The enumeration to convert into {@link Stream}.
+     * @param <T>         The type of the enumeration.
+     * @return The {@link Stream} originated from the given {@link Enumeration}.
+     */
+    private static final <T> Stream<T> enumerationAsStream(final Enumeration<? extends T> enumeration) {
+        return StreamSupport.stream(new EnumerationSpliterator<>(enumeration), false);
     }
 
+    /**
+     * Returns class file versions in a {@link JarFile} archive.
+     * <p>
+     * Construct the {@link JarFile} instance with {@link BytecodeVersionAnalyzer#newJarFile(String)} method
+     * for Multi-Release JAR support.
+     * <p>
+     * This method uses versionedStream method if available (Java 10+), skips META-INF/versions and refreshes
+     * entry. (to get versioned one on Java 9+)
+     * <p>
+     * This means it has full Multi-Release support requirements described in {@link BytecodeVersionAnalyzer#newJarFile(String)},
+     * if you construct the given {@link JarFile} with that method, of course.
+     *
+     * @param jar The {@link JarFile} to get class files versions from.
+     * @return A map containing a {@link JarFile} entry name and {@link ClassFileVersion} of it.
+     * The classes are checked for .class extension, Java class identifier, and, major & minor versions only. It is not
+     * guaranteed to be a valid class.
+     */
     private static final Map<String, ClassFileVersion> getClassFileVersionsInJar(final JarFile jar) {
         final Map<String, ClassFileVersion> classes = new HashMap<>();
 
@@ -379,7 +453,16 @@ final class BytecodeVersionAnalyzer {
             throw handleError(tw);
         }
 
+        final List<String> entriesByPath = new ArrayList<>();
+
         for (JarEntry entry : stream.toArray(JarEntry[]::new)) {
+            if (!entry.getName().endsWith(".class")) {
+                if (entriesByPath.contains(entry.getName())) {
+                    warning("duplicate entry: " + entry.getName());
+                } else {
+                    entriesByPath.add(entry.getName());
+                }
+            }
             if (!entry.isDirectory()) {
                 if (entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
                     entry = jar.getJarEntry(entry.getName());
@@ -439,7 +522,7 @@ final class BytecodeVersionAnalyzer {
         final int magic = data.readInt();
 
         // Identifier for Java class files
-        if (magic != 0xCAFEBABE) {
+        if (magic != JAVA_CLASS_FILE_IDENTIFIER) {
             throw new IOException("invalid Java class");
         }
 
@@ -722,7 +805,7 @@ final class BytecodeVersionAnalyzer {
          * @return The Java version equivalent of this {@link ClassFileVersion}.
          */
         private final int toJavaVersion() {
-            return major - 44;
+            return major - JAVA_CLASS_FILE_VERSION_START;
         }
 
         /**
@@ -805,6 +888,69 @@ final class BytecodeVersionAnalyzer {
          */
         private StopCodeExecution() {
             super(null, null, false, false);
+        }
+    }
+
+    /**
+     * A class for using {@link Enumeration}s as {@link Spliterators}.
+     *
+     * @param <T> The type of the {@link Enumeration}.
+     */
+    private static final class EnumerationSpliterator<T> extends Spliterators.AbstractSpliterator<T> {
+        /**
+         * The {@link Enumeration}.
+         */
+        private final Enumeration<? extends T> enumeration;
+
+        /**
+         * Constructs a new {@link EnumerationSpliterator}.
+         *
+         * @param enumeration The {@link Enumeration}.
+         */
+        private EnumerationSpliterator(final Enumeration<? extends T> enumeration) {
+            super(Long.MAX_VALUE, Spliterator.ORDERED);
+
+            this.enumeration = enumeration;
+        }
+
+        /**
+         * Runs the specified consumer if there is more elements.
+         *
+         * @param action The consumer to invoke.
+         * @return True if the consumer is invoked, false otherwise.
+         */
+        @Override
+        public final boolean tryAdvance(final Consumer<? super T> action) {
+            if (enumeration.hasMoreElements()) {
+                action.accept(enumeration.nextElement());
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Invokes the given consumer for each element remaining.
+         *
+         * @param action The consumer to invoke.
+         */
+        @Override
+        public final void forEachRemaining(final Consumer<? super T> action) {
+            while (enumeration.hasMoreElements()) {
+                action.accept(enumeration.nextElement());
+            }
+        }
+
+        /**
+         * Returns debug string of this {@link EnumerationSpliterator}.
+         *
+         * @return The debug string of this {@link EnumerationSpliterator}.
+         */
+        @Override
+        public final String toString() {
+            //noinspection MagicCharacter
+            return "EnumerationSpliterator{" +
+                "enumeration=" + enumeration +
+                '}';
         }
     }
 }
