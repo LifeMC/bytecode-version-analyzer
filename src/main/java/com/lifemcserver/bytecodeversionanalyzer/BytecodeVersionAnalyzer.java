@@ -277,16 +277,12 @@ final class BytecodeVersionAnalyzer {
                 warning("class " + clazz + " uses preview language features (" + version + ", Java " + version.toJavaVersion() + " with preview language features)");
             }
 
-            if (printIfBelow != null) {
-                if (printIfBelow.isHigherThan(version) && (filter == null || clazz.contains(filter))) {
-                    warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is below specified (" + printIfBelow + ", Java " + printIfBelow.toJavaVersion() + ")");
-                }
+            if (printIfBelow != null && printIfBelow.isHigherThan(version) && (filter == null || clazz.contains(filter))) {
+                warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is below specified (" + printIfBelow + ", Java " + printIfBelow.toJavaVersion() + ")");
             }
 
-            if (printIfAbove != null) {
-                if (version.isHigherThan(printIfAbove) && (filter == null || clazz.contains(filter))) {
-                    warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is above specified (" + printIfAbove + ", Java " + printIfAbove.toJavaVersion() + ")");
-                }
+            if (printIfAbove != null && version.isHigherThan(printIfAbove) && (filter == null || clazz.contains(filter))) {
+                warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is above specified (" + printIfAbove + ", Java " + printIfAbove.toJavaVersion() + ")");
             }
         }
 
@@ -494,28 +490,26 @@ final class BytecodeVersionAnalyzer {
                     entriesByPath.add(entry.getName());
                 }
             }
-            if (!entry.isDirectory()) {
-                if (entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
-                    entry = jar.getJarEntry(entry.getName());
+            if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
+                entry = jar.getJarEntry(entry.getName());
 
-                    try (final InputStream in = jar.getInputStream(entry)) {
-                        final ClassFileVersion version;
+                try (final InputStream in = jar.getInputStream(entry)) {
+                    final ClassFileVersion version;
 
-                        try {
-                            version = getClassFileVersion(in);
-                        } catch (final IOException e) {
-                            error("error when processing class: " + e.getMessage());
-                            continue;
-                        }
-
-                        if (!classes.containsKey(entry.getName())) {
-                            classes.put(entry.getName(), version);
-                        } else {
-                            warning("duplicate class: " + entry.getName());
-                        }
+                    try {
+                        version = getClassFileVersion(in);
                     } catch (final IOException e) {
-                        throw handleError(e);
+                        error("error when processing class: " + e.getMessage());
+                        continue;
                     }
+
+                    if (!classes.containsKey(entry.getName())) {
+                        classes.put(entry.getName(), version);
+                    } else {
+                        warning("duplicate class: " + entry.getName());
+                    }
+                } catch (final IOException e) {
+                    throw handleError(e);
                 }
             }
         }

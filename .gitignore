@@ -25,3 +25,6 @@ hs_err_pid*
 # Maven & IntelliJ artifact build output
 target
 dependency-reduced-pom.xml
+
+# SonarLint issue store
+.idea/sonarlint
