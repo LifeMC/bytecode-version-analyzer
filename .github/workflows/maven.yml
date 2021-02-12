@@ -45,11 +45,8 @@ jobs:
                     key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
                     restore-keys: ${{ runner.os }}-m2
 
-            -   name: Initialize CodeQL
-                uses: github/codeql-action/init@main
-                with:
-                    languages: java
-                    queries: security-extended,security-and-quality,github/codeql/java/ql/src/codeql-suites/java-lgtm-full.qls@main
+            -   name: shellcheck
+                uses: ludeeus/action-shellcheck@1.0.0
 
             -   name: Build with Maven
                 env:
@@ -59,14 +56,17 @@ jobs:
                 run: |
                     mvn clean verify --threads 1C --batch-mode --errors
 
-            -   name: Perform CodeQL Analysis
-                uses: github/codeql-action/analyze@main
-
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v2.2.2
                 with:
                     name: bytecode-version-analyzer-nightly.jar
                     path: target/bytecode-version-analyzer.jar
 
-            -   name: shellcheck
-                uses: ludeeus/action-shellcheck@1.0.0
+            -   name: Initialize CodeQL
+                uses: github/codeql-action/init@main
+                with:
+                    languages: java
+                    queries: security-extended,security-and-quality,github/codeql/java/ql/src/codeql-suites/java-lgtm-full.qls@main
+
+            -   name: Perform CodeQL Analysis
+                uses: github/codeql-action/analyze@main
