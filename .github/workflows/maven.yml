@@ -48,6 +48,12 @@ jobs:
             -   name: shellcheck
                 uses: ludeeus/action-shellcheck@1.0.0
 
+            -   name: Initialize CodeQL
+                uses: github/codeql-action/init@main
+                with:
+                    languages: java
+                    queries: security-extended,security-and-quality,github/codeql/java/ql/src/codeql-suites/java-lgtm-full.qls@main
+
             -   name: Build with Maven
                 env:
                     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
@@ -61,12 +67,6 @@ jobs:
                 with:
                     name: bytecode-version-analyzer-nightly.jar
                     path: target/bytecode-version-analyzer.jar
-
-            -   name: Initialize CodeQL
-                uses: github/codeql-action/init@main
-                with:
-                    languages: java
-                    queries: security-extended,security-and-quality,github/codeql/java/ql/src/codeql-suites/java-lgtm-full.qls@main
 
             -   name: Perform CodeQL Analysis
                 uses: github/codeql-action/analyze@main
