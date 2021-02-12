@@ -53,8 +53,6 @@ classes use 52.0 (Java 8) for every different bytecode version. Here is an image
 You can find old libraries that compile with/into Java 6, or you can find for example libraries that compile into Java
 11, or other versions.
 
-# Limitations/To-do
-
 ## Notes
 
 - Multi-Release JARs are supported. However, to fully support Multi-Release JARs, you must run the program from Java 10
@@ -62,6 +60,10 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
   However, you can still get partial support on Java 9. This because basic versioned JarFile support is added in Java
     9. (The new JarFile constructor accepting Runtime.Version objects.)
+    
+- Preview class files (classes compiled with --enable-preview) are also supported.
+
+# Limitations/To-do
 
 ## Not tested for
 
@@ -76,7 +78,6 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
 - [ ] Refactor code to make it more organized
 - [ ] Add tests
-- [ ] Test with the preview (--enable-preview) versions
 - [ ] Option to print only packages with below/above the specified version (i.e. not every single class, reduces
   messages)
 - [ ] Use a logger to log messages/errors
