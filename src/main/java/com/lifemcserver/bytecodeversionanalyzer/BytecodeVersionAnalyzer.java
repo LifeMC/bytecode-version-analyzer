@@ -384,27 +384,23 @@ final class BytecodeVersionAnalyzer {
                 if (entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
                     entry = jar.getJarEntry(entry.getName());
 
-                    final InputStream in;
+                    try (final InputStream in = jar.getInputStream(entry)) {
+                        final ClassFileVersion version;
 
-                    try {
-                        in = jar.getInputStream(entry);
+                        try {
+                            version = getClassFileVersion(in);
+                        } catch (final IOException e) {
+                            error("error when processing class: " + e.getMessage());
+                            continue;
+                        }
+
+                        if (!classes.containsKey(entry.getName())) {
+                            classes.put(entry.getName(), version);
+                        } else {
+                            warning("duplicate class: " + entry.getName());
+                        }
                     } catch (final IOException e) {
                         throw handleError(e);
-                    }
-
-                    final ClassFileVersion version;
-
-                    try {
-                        version = getClassFileVersion(in);
-                    } catch (final IOException e) {
-                        error("error when processing class: " + e.getMessage());
-                        continue;
-                    }
-
-                    if (!classes.containsKey(entry.getName())) {
-                        classes.put(entry.getName(), version);
-                    } else {
-                        warning("duplicate entry: " + entry.getName());
                     }
                 }
             }
@@ -413,8 +409,19 @@ final class BytecodeVersionAnalyzer {
         return classes;
     }
 
-    private static final ClassFileVersion getClassFileVersion(final File file) throws IOException {
-        return getClassFileVersion(new FileInputStream(file));
+    /**
+     * Gets the class file version of a single class {@link File}.
+     *
+     * @param file The class file to get class file version of it.
+     * @return The class file version of the given class file.
+     * @throws IOException If the file is not a valid Java class or contain
+     *                     illegal major / minor version specifications.
+     */
+    @SuppressWarnings("DuplicateThrows")
+    private static final ClassFileVersion getClassFileVersion(final File file) throws FileNotFoundException, IOException {
+        try (final InputStream in = new FileInputStream(file)) {
+            return getClassFileVersion(in);
+        }
     }
 
     /**
@@ -439,6 +446,8 @@ final class BytecodeVersionAnalyzer {
         // Note: Do not reverse the order, minor comes first.
         final int minor = 0xFFFF & data.readShort();
         final int major = 0xFFFF & data.readShort();
+
+        data.close();
 
         return new ClassFileVersion(major, minor);
     }
@@ -484,29 +493,38 @@ final class BytecodeVersionAnalyzer {
     private static final void loadPom() {
         InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/" + groupId + "/" + artifactId + "/pom.xml");
 
-        if (stream == null) {
-            try {
-                final Path path = Paths.get(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource(".")).toURI());
-                final File file = new File(path.getParent().getParent().toString(), "pom.xml");
+        try {
+            if (stream == null) {
+                try {
+                    final Path path = Paths.get(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource(".")).toURI());
+                    final File file = new File(path.getParent().getParent().toString(), "pom.xml");
 
-                if (file.exists()) {
-                    stream = new FileInputStream(file);
+                    if (file.exists()) {
+                        stream = new FileInputStream(file);
+                    }
+                } catch (final FileNotFoundException | URISyntaxException e) {
+                    return;
                 }
-            } catch (final FileNotFoundException | URISyntaxException e) {
-                return;
+
+                if (stream == null)
+                    return;
             }
 
-            if (stream == null)
-                return;
-        }
+            final MavenXpp3Reader reader = new MavenXpp3Reader();
 
-        final MavenXpp3Reader reader = new MavenXpp3Reader();
-        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-
-        try {
-            model = reader.read(bufferedReader);
-        } catch (final IOException | XmlPullParserException e) {
-            throw handleError(e);
+            try (final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                model = reader.read(bufferedReader);
+            } catch (final IOException | XmlPullParserException e) {
+                throw handleError(e);
+            }
+        } finally {
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (final IOException e) {
+                    handleError(e);
+                }
+            }
         }
     }
 
@@ -654,11 +672,19 @@ final class BytecodeVersionAnalyzer {
             }
         }
 
-        private static final ClassFileVersion fromBytecodeVersionString(final String string) {
-            final String[] splitByDot = dot.split(string);
+        /**
+         * Converts the given bytecode version string into a {@link ClassFileVersion} object, creating a new instance on each call.
+         * <p>
+         * The given bytecode version string should be on the major.minor format (i.e. 52.0).
+         *
+         * @param bytecodeVersionString The bytecode version string to parse and crete a new {@link ClassFileVersion} for it.
+         * @return The {@link ClassFileVersion} representing the given bytecode version string.
+         */
+        private static final ClassFileVersion fromBytecodeVersionString(final String bytecodeVersionString) {
+            final String[] splitByDot = dotPattern.split(bytecodeVersionString);
 
             if (splitByDot.length != 2) {
-                throw new IllegalArgumentException("not in major.minor format: " + string);
+                throw new IllegalArgumentException("not in major.minor format: " + bytecodeVersionString);
             }
 
             final int major = Integer.parseInt(splitByDot[0]);
