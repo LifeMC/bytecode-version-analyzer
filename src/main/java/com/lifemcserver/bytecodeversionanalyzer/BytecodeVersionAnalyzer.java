@@ -661,14 +661,24 @@ final class BytecodeVersionAnalyzer {
          * @return The {@link ClassFileVersion} representing the given Java version.
          */
         private static final ClassFileVersion fromJavaVersion(final String javaVersion) {
-            return fromBytecodeVersionString((Integer.parseInt(javaVersion) + 44) + ".0");
+            // NumberFormatException is callers problem
+            return fromBytecodeVersionString((Integer.parseInt(javaVersion) + JAVA_CLASS_FILE_VERSION_START) + ".0"); // lgtm [java/uncaught-number-format-exception]
         }
 
-        private static final ClassFileVersion fromString(final String string) {
+        /**
+         * Creates a new {@link ClassFileVersion} parsing the given string.
+         * <p>
+         * This method first tries to parse it as bytecode version with the major.minor format,
+         * and falls back to using {@link ClassFileVersion#fromJavaVersion(String)} if it fails.
+         *
+         * @param bytecodeOrJavaVersionString The string to parse and transform into {@link ClassFileVersion}.
+         * @return The {@link ClassFileVersion} representing the given Java version.
+         */
+        private static final ClassFileVersion fromString(final String bytecodeOrJavaVersionString) {
             try {
-                return fromBytecodeVersionString(string);
+                return fromBytecodeVersionString(bytecodeOrJavaVersionString);
             } catch (final IllegalArgumentException e) {
-                return fromJavaVersion(string);
+                return fromJavaVersion(bytecodeOrJavaVersionString);
             }
         }
 
@@ -741,7 +751,7 @@ final class BytecodeVersionAnalyzer {
          * The return value can not be reverted back to {@link ClassFileVersion} using standard methods.
          */
         private final String toStringAddJavaVersionToo() {
-            return toString() + " (Java " + toJavaVersion() + ")";
+            return this + " (Java " + toJavaVersion() + ")";
         }
 
         /**
@@ -751,11 +761,11 @@ final class BytecodeVersionAnalyzer {
          * @return True if both are equal in major & minor, false otherwise.
          */
         @Override
-        public final boolean equals(final Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ClassFileVersion)) return false;
+        public final boolean equals(final Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof ClassFileVersion)) return false;
 
-            final ClassFileVersion version = (ClassFileVersion) o;
+            final ClassFileVersion version = (ClassFileVersion) obj;
             return major == version.major && minor == version.minor;
         }
 
@@ -766,7 +776,11 @@ final class BytecodeVersionAnalyzer {
          */
         @Override
         public final int hashCode() {
-            return Objects.hash(major, minor);
+            // Note: No Objects#hashCode to avoid autoboxing
+            int result = major;
+            result = HASH_CODE_MAGIC_NUMBER * result + minor;
+
+            return result;
         }
     }
 
