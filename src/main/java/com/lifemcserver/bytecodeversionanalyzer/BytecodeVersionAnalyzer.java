@@ -309,27 +309,41 @@ final class BytecodeVersionAnalyzer {
                     info("note: debug mode is enabled");
 
                     continue;
+                default:
+                    if (startOfArgumentValue == null) {
+                        if (arg.startsWith("--") && !arg.contains(".")) {
+                            error("unrecognized argument: " + arg + ", skipping...");
+                            continue;
+                        } else if (debug) {
+                            info("not handling unrecognized argument " + arg + " not starting with -- (maybe a class or jar name?)");
+                        }
+
+                        break;
+                    } else if (debug) {
+                        info("will parse value of " + startOfArgumentValue + " argument in next iteration");
+                    }
             }
 
-            if ("printIfBelow".equals(startOfArgumentValue)) {
-                startOfArgumentValue = null;
-                printIfBelow = parseClassFileVersionFromUserInput(arg);
+            if (startOfArgumentValue != null) {
+                switch (startOfArgumentValue) {
+                    case "printIfBelow":
+                        startOfArgumentValue = null;
+                        printIfBelow = parseClassFileVersionFromUserInput(arg);
 
-                continue;
-            }
+                        continue;
+                    case "printIfAbove":
+                        startOfArgumentValue = null;
+                        printIfAbove = parseClassFileVersionFromUserInput(arg);
 
-            if ("printIfAbove".equals(startOfArgumentValue)) {
-                startOfArgumentValue = null;
-                printIfAbove = parseClassFileVersionFromUserInput(arg);
+                        continue;
+                    case "filter":
+                        startOfArgumentValue = null;
+                        filter = arg;
 
-                continue;
-            }
-
-            if ("filter".equals(startOfArgumentValue)) {
-                startOfArgumentValue = null;
-                filter = arg;
-
-                continue;
+                        continue;
+                    default: // startOfArgumentValue set to a non-null value but it is not handled above.
+                        throw new IllegalStateException("argument value of argument " + startOfArgumentValue + " (" + arg + ") is not correctly handled");
+                }
             }
 
             archivePath.append(arg);
