@@ -58,7 +58,7 @@ final class BytecodeVersionAnalyzer {
     /**
      * The decimal format for two numbers at most after the first dot in non-integer/long numbers.
      */
-    private static final ThreadLocal<DecimalFormat> twoNumbersAfterDotFormat = ThreadLocal.withInitial(BytecodeVersionAnalyzer::getTwoNumbersAfterDotFormat);
+    private static final DecimalFormat twoNumbersAfterDotFormat = getTwoNumbersAfterDotFormat();
     /**
      * The result of JarFile#runtimeVersion method when on Java 9 or above. Null otherwise.
      */
@@ -407,7 +407,7 @@ final class BytecodeVersionAnalyzer {
      * @return The non-verbose, human-friendly read-able double.
      */
     private static final String formatDouble(final double number) {
-        return twoNumbersAfterDotFormat.get().format(number);
+        return twoNumbersAfterDotFormat.format(number);
     }
 
     /**
