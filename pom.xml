@@ -209,13 +209,18 @@
                         <!--<arg>-properties</arg>
                         <arg>.settings/org.eclipse.jdt.core.prefs</arg>-->
 
+                        <arg>-deprecation</arg>
+
                         <arg>-encoding</arg>
                         <arg>UTF-8</arg>
 
-                        <arg>-O</arg>
+                        <arg>-g</arg>
+                        <arg>-parameters</arg>
 
                         <arg>-Xpkginfo:always</arg>
                         <!--<arg>-Xwarn:-tasks</arg>-->
+
+                        <arg>-O</arg>
                     </compilerArgs>
                     <showWarnings>true</showWarnings>
                     <showDeprecation>true</showDeprecation>

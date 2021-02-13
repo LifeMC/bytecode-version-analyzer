@@ -92,6 +92,10 @@ final class BytecodeVersionAnalyzer {
      */
     private static final double ONE_HUNDRED = 100.0D;
     /**
+     * Dollar literal pattern that mathces a dollar sign.
+     */
+    private static final Pattern dollarPattern = Pattern.compile("$", Pattern.LITERAL);
+    /**
      * The parsed model object for pom file, for getting the version and other information.
      */
     private static Model model;
@@ -137,66 +141,20 @@ final class BytecodeVersionAnalyzer {
         info("Took " + timing);
     }
 
+    /**
+     * Checks arguments and processes them.
+     *
+     * @param args The arguments to check and process.
+     */
     private static final void runCli(final String[] args) {
-        loadPom();
-
-        if (model == null) {
-            warning();
-            warning("couldn't load POM file; some things will not display");
-            warning();
-        }
-
         if (args == null || args.length < 1 || args[0].length() < 1) {
             // Display the help and quit, called with no/invalid arguments; maybe just double clicking
             displayHelp();
             return;
         }
 
-        ClassFileVersion printIfBelow = null;
-        ClassFileVersion printIfAbove = null;
-
-        final StringBuilder archivePath = new StringBuilder();
-
-        boolean printedAtLeastOneVersion = false;
-        String startOfArgumentValue = null;
-
-        final int argsLength = args.length;
-
-        String filter = null;
-
-        for (int i = 0; i < argsLength; i++) {
-            final String arg = args[i];
-
-            if (arg.endsWith(".class")) {
-                // Display version of a single class file
-                final File file = new File(arg);
-
-                if (!file.exists()) {
-                    error("file does not exist: " + arg);
-                    continue;
-                }
-
-                final ClassFileVersion version;
-
-                try {
-                    version = getClassFileVersion(file);
-                } catch (final FileNotFoundException e) {
-                    throw handleError(e); // We checked that the file exists.. How?
-                } catch (final IOException e) {
-                    error("error when processing class: " + e.getMessage());
-                    continue;
-                }
-
-                info(version.toStringAddJavaVersionToo());
-                printedAtLeastOneVersion = true;
-
-                continue;
-            }
-
-            if (arg.startsWith("--print-if-below")) {
-                startOfArgumentValue = "printIfBelow";
-                continue;
-            }
+        process(args);
+    }
 
     /**
      * Gets the POM model object, loading it if not already loaded.
@@ -218,11 +176,18 @@ final class BytecodeVersionAnalyzer {
         return model;
     }
 
-            archivePath.append(arg);
+    /**
+     * Processes the arguments.
+     *
+     * @param args The arguments.
+     */
+    private static final void process(final String[] args) {
+        // Parse arguments
+        final ArgumentParseResult result = parseArguments(args, args.length, new StringBuilder());
 
-            if (i < argsLength - 1)
-                archivePath.append(" ");
-        }
+        // Initialize parse result variables
+        final StringBuilder archivePath = result.archivePath;
+        final boolean printedAtLeastOneVersion = result.printedAtLeastOneVersion;
 
         // OK, we are processing a jar
         final JarFile jar;
@@ -251,6 +216,21 @@ final class BytecodeVersionAnalyzer {
 
         final Map<ClassFileVersion, Integer> counter = new HashMap<>();
 
+        analyze(classes, counter, result.printIfBelow, result.printIfAbove, result.filter);
+    }
+
+    /**
+     * Analyzes the classes.
+     *
+     * @param classes      The classes.
+     * @param counter      The counter.
+     * @param printIfBelow Prints a warning if class file version is lower than this value.
+     * @param printIfAbove Prints a warning if class file version is higher than this value.
+     * @param filter       Makes warnings printed by printIfAbove and printIfBelow filtered by this text.
+     *                     The warnings will not be printed unless they contain the filter text, or the filter text is null.
+     */
+    private static final void analyze(final Map<String, ClassFileVersion> classes, final Map<ClassFileVersion, Integer> counter,
+                                      final ClassFileVersion printIfBelow, final ClassFileVersion printIfAbove, final CharSequence filter) {
         for (final Map.Entry<String, ClassFileVersion> entry : classes.entrySet()) {
             final String clazz = entry.getKey();
             final ClassFileVersion version = entry.getValue();
@@ -283,6 +263,124 @@ final class BytecodeVersionAnalyzer {
 
             info(usages + " out of total " + total + " classes (%" + formatDouble(percent) + ") use " + version.toStringAddJavaVersionToo() + " class file version");
         }
+    }
+
+    /**
+     * Parses the arguments and returns the parse result.
+     *
+     * @param args        The arguments.
+     * @param argsLength  The length of arguments.
+     * @param archivePath A string builder to append archive path to.
+     * @return The parse result of the given arguments.
+     */
+    private static final ArgumentParseResult parseArguments(final String[] args, final int argsLength, final StringBuilder archivePath) {
+        ClassFileVersion printIfBelow = null;
+        ClassFileVersion printIfAbove = null;
+
+        boolean printedAtLeastOneVersion = false;
+        String filter = null;
+
+        String startOfArgumentValue = null;
+
+        for (int i = 0; i < argsLength; i++) {
+            final String arg = args[i];
+
+            if (arg.endsWith(".class")) {
+                printedAtLeastOneVersion = true;
+
+                // Display version of a single class file
+                printSingleClassFile(arg);
+
+                continue;
+            }
+
+            switch (arg) {
+                case "--print-if-below":
+                    startOfArgumentValue = "printIfBelow";
+                    continue;
+                case "--print-if-above":
+                    startOfArgumentValue = "printIfAbove";
+                    continue;
+                case "--filter":
+                    startOfArgumentValue = "filter";
+                    continue;
+                case "--debug":
+                    debug = true;
+                    info("note: debug mode is enabled");
+
+                    continue;
+            }
+
+            if ("printIfBelow".equals(startOfArgumentValue)) {
+                startOfArgumentValue = null;
+                printIfBelow = parseClassFileVersionFromUserInput(arg);
+
+                continue;
+            }
+
+            if ("printIfAbove".equals(startOfArgumentValue)) {
+                startOfArgumentValue = null;
+                printIfAbove = parseClassFileVersionFromUserInput(arg);
+
+                continue;
+            }
+
+            if ("filter".equals(startOfArgumentValue)) {
+                startOfArgumentValue = null;
+                filter = arg;
+
+                continue;
+            }
+
+            archivePath.append(arg);
+
+            if (i < argsLength - 1)
+                archivePath.append(" ");
+        }
+
+        return new ArgumentParseResult(printIfBelow, printIfAbove, archivePath, printedAtLeastOneVersion, filter);
+    }
+
+    /**
+     * Parses user input as {@link ClassFileVersion}, printing errors if necessary.
+     *
+     * @param input The user input to parse.
+     * @return The {@link ClassFileVersion}.
+     */
+    private static final ClassFileVersion parseClassFileVersionFromUserInput(final String input) {
+        try {
+            return ClassFileVersion.fromString(input);
+        } catch (final IllegalArgumentException e) {
+            error("invalid class file version: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Prints version of a single class file.
+     *
+     * @param arg The path argument.
+     */
+    private static final void printSingleClassFile(final String arg) {
+        final File file = new File(arg);
+
+        if (!file.exists()) {
+            error("file does not exist: " + arg);
+            return;
+        }
+
+        final ClassFileVersion version;
+
+        try {
+            version = getClassFileVersion(file);
+        } catch (final FileNotFoundException e) {
+            throw handleError(e); // We checked that the file exists.. How?
+        } catch (final IOException e) {
+            error("error when processing class: " + e.getMessage());
+            return;
+        }
+
+        info(version.toStringAddJavaVersionToo());
     }
 
     /**
@@ -372,6 +470,9 @@ final class BytecodeVersionAnalyzer {
      * - Then do {@code entry = jar.getJarEntry(entry.getName());}. This will get the entry with correct release
      * depending on the JVM that is running the code. If on a non Multi-Release constructed JarFile instance, it will
      * return the same entry.
+     * <p>
+     * - Then call {@link BytecodeVersionAnalyzer#shouldSkip(JarEntry, JarEntry, JarFile)} to determine if an entry should
+     * be skipped. This for skipping the compiler generated synthetic classes.
      *
      * @param path The path of the JAR file.
      * @return A new JAR file object with Multi-Release JAR support.
@@ -447,8 +548,8 @@ final class BytecodeVersionAnalyzer {
      * Construct the {@link JarFile} instance with {@link BytecodeVersionAnalyzer#newJarFile(String)} method
      * for Multi-Release JAR support.
      * <p>
-     * This method uses versionedStream method if available (Java 10+), skips META-INF/versions and refreshes
-     * entry. (to get versioned one on Java 9+)
+     * This method uses versionedStream method if available (Java 10+), skips META-INF/versions, refreshes
+     * entry (to get versioned one on Java 9+) and uses {@link BytecodeVersionAnalyzer#shouldSkip(JarEntry, JarEntry, JarFile)}.
      * <p>
      * This means it has full Multi-Release support requirements described in {@link BytecodeVersionAnalyzer#newJarFile(String)},
      * if you construct the given {@link JarFile} with that method, of course.
@@ -484,7 +585,12 @@ final class BytecodeVersionAnalyzer {
                 }
             }
             if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
+                final JarEntry oldEntry = entry;
                 entry = jar.getJarEntry(entry.getName());
+
+                if (shouldSkip(entry, oldEntry, jar)) {
+                    continue;
+                }
 
                 try (final InputStream in = jar.getInputStream(entry)) {
                     final ClassFileVersion version;
@@ -508,6 +614,52 @@ final class BytecodeVersionAnalyzer {
         }
 
         return classes;
+    }
+
+    private static final boolean shouldSkip(final JarEntry entry, final JarEntry oldEntry, final JarFile jar) {
+        // Skip the non-versioned compiler generated classes
+
+        // JarEntry or ZipEntry does not implement a equals method, but they implement a hashCode method.
+        // So we use it to check equality.
+        if (entry.getName().contains("$")) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class)
+            if (entry.hashCode() == oldEntry.hashCode()) { // Non-versioned class
+                final String[] nestedClassSplit = dollarPattern.split(entry.getName());
+
+                boolean compilerGeneratedNonSourceClass = true;
+                try {
+                    // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
+                    Integer.parseInt(nestedClassSplit[1].replace(".class", ""));
+                } catch (final NumberFormatException e) {
+                    // It is a sub-class
+                    compilerGeneratedNonSourceClass = false;
+                }
+
+                if (compilerGeneratedNonSourceClass) { // A synthetic accessor class, or an anonymous/lambda class.
+                    final String baseClassName = nestedClassSplit[0] + ".class";
+                    final JarEntry baseClassJarEntry = jar.getJarEntry(baseClassName);
+
+                    final ZipEntry baseClassEntry;
+
+                    try (final ZipFile zip = new ZipFile(jar.getName())) {
+                        baseClassEntry = zip.getEntry(baseClassName);
+                    } catch (final IOException e) {
+                        throw handleError(e);
+                    }
+
+                    if (baseClassJarEntry != null) { // Base class is found
+                        if (baseClassJarEntry.hashCode() != baseClassEntry.hashCode()) { // Base class is versioned
+                            if (debug) {
+                                info("skipping " + entry.getName() + " (non-versioned compiler generated class whose base class is found and versioned)");
+                            }
+
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -724,6 +876,72 @@ final class BytecodeVersionAnalyzer {
      */
     private static final void error(final String message) {
         System.err.println(errorPrefix + message);
+    }
+
+    /**
+     * Represents the parse result of arguments.
+     */
+    private static final class ArgumentParseResult {
+        /**
+         * The printIfBelow argument.
+         */
+        private final ClassFileVersion printIfBelow;
+        /**
+         * The printIfAbove argument.
+         */
+        private final ClassFileVersion printIfAbove;
+
+        /**
+         * The archivePath {@link StringBuilder}.
+         */
+        private final StringBuilder archivePath;
+        /**
+         * Tracks if we printed class file version of a single class already.
+         * If false, we will try to interpret argument as JAR instead.
+         */
+        private final boolean printedAtLeastOneVersion;
+        /**
+         * The filter argument.
+         * Used for filtering warnings printed by printIfAbove and printIfBelow.
+         */
+        private final String filter;
+
+        /**
+         * Constructs a argument parse result.
+         *
+         * @param printIfBelow             The printIfBelow argument.
+         * @param printIfAbove             The printIfAbove argument.
+         * @param archivePath              The {@link StringBuilder} of archive path.
+         * @param printedAtLeastOneVersion True if printed a version of single class file.
+         * @param filter                   The filter used to filter warning messages printed by printIfBelow and printIfAbove.
+         */
+        private ArgumentParseResult(final ClassFileVersion printIfBelow, final ClassFileVersion printIfAbove, final StringBuilder archivePath,
+                                    final boolean printedAtLeastOneVersion, final String filter) {
+            this.printIfBelow = printIfBelow;
+            this.printIfAbove = printIfAbove;
+
+            this.archivePath = archivePath;
+            this.printedAtLeastOneVersion = printedAtLeastOneVersion;
+
+            this.filter = filter;
+        }
+
+        /**
+         * Returns the debug string representation of this {@link ArgumentParseResult}.
+         *
+         * @return The debug string representation of this {@link ArgumentParseResult}.
+         */
+        @Override
+        public final String toString() {
+            //noinspection MagicCharacter
+            return "ArgumentParseResult{" +
+                "printIfBelow=" + printIfBelow +
+                ", printIfAbove=" + printIfAbove +
+                ", archivePath=" + archivePath +
+                ", printedAtLeastOneVersion=" + printedAtLeastOneVersion +
+                ", filter='" + filter + '\'' +
+                '}';
+        }
     }
 
     /**
