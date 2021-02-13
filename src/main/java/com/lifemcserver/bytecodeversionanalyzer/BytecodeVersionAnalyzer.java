@@ -96,6 +96,10 @@ final class BytecodeVersionAnalyzer {
      */
     private static Model model;
     /**
+     * Indicates that POM is loaded or not. Does not indicate a successful load, though.
+     */
+    private static boolean loadedPom;
+    /**
      * Determines if debug messages should be printed.
      */
     private static boolean debug;
@@ -194,48 +198,25 @@ final class BytecodeVersionAnalyzer {
                 continue;
             }
 
-            if ("printIfBelow".equals(startOfArgumentValue)) {
-                startOfArgumentValue = null;
-                try {
-                    printIfBelow = ClassFileVersion.fromString(arg);
-                } catch (final IllegalArgumentException e) {
-                    error("invalid class file version: " + e.getMessage());
-                }
-                continue;
-            }
+    /**
+     * Gets the POM model object, loading it if not already loaded.
+     *
+     * @return The POM model object, null if failed to load.
+     */
+    private static final Model getModel() {
+        if (!loadedPom) {
+            loadedPom = true;
+            loadPom();
 
-            if (arg.startsWith("--print-if-above")) {
-                startOfArgumentValue = "printIfAbove";
-                continue;
+            if (model == null) {
+                warning();
+                warning("couldn't load POM file; some things will not display");
+                warning();
             }
+        }
 
-            if ("printIfAbove".equals(startOfArgumentValue)) {
-                startOfArgumentValue = null;
-                try {
-                    printIfAbove = ClassFileVersion.fromString(arg);
-                } catch (final IllegalArgumentException e) {
-                    error("invalid class file version: " + e.getMessage());
-                }
-                continue;
-            }
-
-            if (arg.startsWith("--filter")) {
-                startOfArgumentValue = "filter";
-                continue;
-            }
-
-            if ("filter".equals(startOfArgumentValue)) {
-                startOfArgumentValue = null;
-                filter = arg;
-
-                continue;
-            }
-
-            if (arg.startsWith("--debug")) {
-                debug = true;
-                info("note: debug mode is enabled");
-                continue;
-            }
+        return model;
+    }
 
             archivePath.append(arg);
 
@@ -579,7 +560,7 @@ final class BytecodeVersionAnalyzer {
      * @return The version from the attached maven pom file to the JAR.
      */
     private static final String getVersion() {
-        if (model == null)
+        if (getModel() == null)
             return "Unknown-Version";
         return model.getVersion();
     }
@@ -590,7 +571,7 @@ final class BytecodeVersionAnalyzer {
      * @return The source url or "Error-Loading-Pom" string if it can't get it.
      */
     private static final String getSourceUrl() {
-        if (model == null)
+        if (getModel() == null)
             return "Error-Loading-Pom";
         return model.getScm().getUrl();
     }
@@ -601,7 +582,7 @@ final class BytecodeVersionAnalyzer {
      * @return The issues url or "Error-Loading-Pom" string if it can't get it.
      */
     private static final String getIssuesUrl() {
-        if (model == null)
+        if (getModel() == null)
             return "Error-Loading-Pom";
         return model.getIssueManagement().getUrl();
     }
