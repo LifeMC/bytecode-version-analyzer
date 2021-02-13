@@ -621,40 +621,36 @@ final class BytecodeVersionAnalyzer {
 
         // JarEntry or ZipEntry does not implement a equals method, but they implement a hashCode method.
         // So we use it to check equality.
-        if (entry.getName().contains("$")) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class)
-            if (entry.hashCode() == oldEntry.hashCode()) { // Non-versioned class
-                final String[] nestedClassSplit = dollarPattern.split(entry.getName());
+        if (entry.getName().contains("$") && entry.hashCode() == oldEntry.hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
+            final String[] nestedClassSplit = dollarPattern.split(entry.getName());
 
-                boolean compilerGeneratedNonSourceClass = true;
-                try {
-                    // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
-                    Integer.parseInt(nestedClassSplit[1].replace(".class", ""));
-                } catch (final NumberFormatException e) {
-                    // It is a sub-class
-                    compilerGeneratedNonSourceClass = false;
+            boolean compilerGeneratedNonSourceClass = true;
+            try {
+                // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
+                Integer.parseInt(nestedClassSplit[1].replace(".class", ""));
+            } catch (final NumberFormatException e) {
+                // It is a sub-class
+                compilerGeneratedNonSourceClass = false;
+            }
+
+            if (compilerGeneratedNonSourceClass) { // A synthetic accessor class, or an anonymous/lambda class.
+                final String baseClassName = nestedClassSplit[0] + ".class";
+                final JarEntry baseClassJarEntry = jar.getJarEntry(baseClassName);
+
+                final ZipEntry baseClassEntry;
+
+                try (final ZipFile zip = new ZipFile(jar.getName())) {
+                    baseClassEntry = zip.getEntry(baseClassName);
+                } catch (final IOException e) {
+                    throw handleError(e);
                 }
 
-                if (compilerGeneratedNonSourceClass) { // A synthetic accessor class, or an anonymous/lambda class.
-                    final String baseClassName = nestedClassSplit[0] + ".class";
-                    final JarEntry baseClassJarEntry = jar.getJarEntry(baseClassName);
-
-                    final ZipEntry baseClassEntry;
-
-                    try (final ZipFile zip = new ZipFile(jar.getName())) {
-                        baseClassEntry = zip.getEntry(baseClassName);
-                    } catch (final IOException e) {
-                        throw handleError(e);
+                if (baseClassJarEntry != null && baseClassJarEntry.hashCode() != baseClassEntry.hashCode()) { // Base class is found and versioned
+                    if (debug) {
+                        info("skipping " + entry.getName() + " (non-versioned compiler generated class whose base class is found and versioned)");
                     }
 
-                    if (baseClassJarEntry != null) { // Base class is found
-                        if (baseClassJarEntry.hashCode() != baseClassEntry.hashCode()) { // Base class is versioned
-                            if (debug) {
-                                info("skipping " + entry.getName() + " (non-versioned compiler generated class whose base class is found and versioned)");
-                            }
-
-                            return true;
-                        }
-                    }
+                    return true;
                 }
             }
         }
