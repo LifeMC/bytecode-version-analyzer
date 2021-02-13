@@ -90,7 +90,7 @@ final class BytecodeVersionAnalyzer {
     /**
      * The one hundred number with precision as a double.
      */
-    private static final double ONE_HUNDRED = 100.00D;
+    private static final double ONE_HUNDRED = 100.0D;
     /**
      * The parsed model object for pom file, for getting the version and other information.
      */
@@ -262,6 +262,12 @@ final class BytecodeVersionAnalyzer {
 
         // Process the jar
         final Map<String, ClassFileVersion> classes = getClassFileVersionsInJar(jar);
+        try {
+            jar.close();
+        } catch (final IOException e) {
+            throw handleError(e);
+        }
+
         final Map<ClassFileVersion, Integer> counter = new HashMap<>();
 
         for (final Map.Entry<String, ClassFileVersion> entry : classes.entrySet()) {
@@ -397,6 +403,9 @@ final class BytecodeVersionAnalyzer {
                 throw handleError(tw);
             }
         }
+        if (debug) {
+            warning("using non-versioned JarFile constructor");
+        }
         return new JarFile(path);
     }
 
@@ -473,6 +482,9 @@ final class BytecodeVersionAnalyzer {
 
         final Stream<JarEntry> stream;
         try {
+            if (debug && versionedStream == null) {
+                warning("using non-versioned enumeration stream");
+            }
             // must be done
             //noinspection unchecked
             stream = versionedStream != null ? ((Stream<JarEntry>) versionedStream.invoke(jar)) : enumerationAsStream(jar.entries());
