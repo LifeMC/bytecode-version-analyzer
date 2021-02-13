@@ -71,6 +71,14 @@ final class BytecodeVersionAnalyzer {
      * A preview class files minor version is always this value.
      */
     private static final int PREVIEW_CLASS_FILE_MINOR_VERSION = 65535;
+	/**
+	 * Result of this value can be used to get a class file version from bits.
+	 * (example: {@code HEXADECIMAL_ALL_BITS_ONE & 0x34} will give 52, which is Java 8)
+	 *
+	 * In fact, this the same number as {@link BytecodeVersionAnalyzer#PREVIEW_CLASS_FILE_MINOR_VERSION}, but we represent it as a
+	 * hexadecimal value for clarification.
+	 */
+	private static final int HEXADECIMAL_ALL_BITS_ONE = 0xFFFF;
     /**
      * Identifier for Java class files. Classes do not contain this value are invalid.
      */
@@ -630,6 +638,13 @@ final class BytecodeVersionAnalyzer {
         return classes;
     }
 
+    /**
+     * Determines if the given {@link JarEntry} should be skipped.
+	 * <p>
+	 * {@link JarEntry JarEntries} will be skipped when they are non-versioned compiler generated classes, i.e synthetic classes.
+	 *
+	 * @return Whatever the given {@link JarEntry} should be skipped or not.
+     */
     private static final boolean shouldSkip(final JarEntry entry, final JarEntry oldEntry, final JarFile jar) {
         // Skip the non-versioned compiler generated classes
 
@@ -707,8 +722,8 @@ final class BytecodeVersionAnalyzer {
         }
 
         // Note: Do not reverse the order, minor comes first.
-        final int minor = 0xFFFF & data.readShort();
-        final int major = 0xFFFF & data.readShort();
+        final int minor = HEXADECIMAL_ALL_BITS_ONE & data.readShort();
+        final int major = HEXADECIMAL_ALL_BITS_ONE & data.readShort();
 
         data.close();
 
