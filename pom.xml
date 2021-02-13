@@ -6,7 +6,7 @@
 
     <groupId>com.lifemcserver</groupId>
     <artifactId>bytecode-version-analyzer</artifactId>
-    <version>0.2</version>
+    <version>0.3</version>
 
     <name>Bytecode Version Analyzer</name>
 
