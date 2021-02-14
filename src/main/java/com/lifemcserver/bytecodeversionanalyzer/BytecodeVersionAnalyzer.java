@@ -127,7 +127,7 @@ final class BytecodeVersionAnalyzer {
     }
 
     /**
-     * Private constructor avoid creating new instances.
+     * Private constructor to avoid creation of new instances.
      */
     private BytecodeVersionAnalyzer() {
         throw new UnsupportedOperationException("Static only class");
