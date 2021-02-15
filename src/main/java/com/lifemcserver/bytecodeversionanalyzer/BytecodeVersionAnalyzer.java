@@ -202,11 +202,22 @@ final class BytecodeVersionAnalyzer {
         final String path = archivePath.toString().trim();
 
         try {
-            if (!new File(path).exists()) {
+            final File archiveFile = new File(path);
+
+            if (!archiveFile.exists()) {
                 if (!printedAtLeastOneVersion) {
                     error("archive file does not exist: " + path + " (tip: use quotes if the path contains space)");
                 }
                 return;
+            }
+
+            if (!archiveFile.isFile()) {
+                error("can't process a directory: " + path);
+                return;
+            }
+
+            if (!archiveFile.canRead()) {
+                error("can't read the file: " + path);
             }
 
             jar = newJarFile(path);
@@ -388,6 +399,16 @@ final class BytecodeVersionAnalyzer {
 
         if (!file.exists()) {
             error("file does not exist: " + arg);
+            return;
+        }
+
+        if (!file.isFile()) {
+            error("can't process a directory: " + arg);
+            return;
+        }
+
+        if (!file.canRead()) {
+            error("can't read the file: " + arg);
             return;
         }
 
