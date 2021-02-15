@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -104,6 +105,14 @@ final class BytecodeVersionAnalyzer {
      */
     private static final Pattern dollarPattern = Pattern.compile("$", Pattern.LITERAL);
     /**
+     * Uncaught exception handler for the program.
+     */
+    private static final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = new BytecodeVersionAnalyzerUncaughtExceptionHandler();
+    /**
+     * Matches the literal pattern of text ".class"
+     */
+    private static final Matcher dotClassPatternMatcher = Pattern.compile(".class", Pattern.LITERAL).matcher("");
+    /**
      * The parsed model object for pom file, for getting the version and other information.
      */
     private static Model model;
@@ -119,6 +128,10 @@ final class BytecodeVersionAnalyzer {
      * The versionedStream method of JarFile when on Java 10 or above. Null otherwise.
      */
     private static final MethodHandle versionedStream = findVersionedStream();
+    /**
+     * Keeps track of the total spawned thread count. (not currently live threads)
+     */
+    private static long threadCount;
 
     static {
         // In-block to guarantee order of execution. Tools such as IntelliJ can re-arrange field order.
@@ -134,6 +147,50 @@ final class BytecodeVersionAnalyzer {
     }
 
     /**
+     * Gets a unique thread suffix in the format " #number", where number is a long number.
+     * The number increases everytime this method is called. If it was 0, then an empty suffix is return.
+     *
+     * @return An unique thread suffix in the format " #number".
+     */
+    private static final String getThreadSuffix() {
+        ++threadCount;
+
+        if (threadCount > 1) {
+            return " #" + threadCount;
+        }
+
+        return "";
+    }
+
+    /**
+     * Gets thread name for spawning/setting up on a thread.
+     *
+     * @return The programs default thread name.
+     */
+    private static final String getThreadName() {
+        return "Bytecode version analyzer thread" + getThreadSuffix();
+    }
+
+    /**
+     * Sets up the given thread with the program's default thread name and uncaught exception handler.
+     *
+     * @param thread The thread to set up.
+     */
+    private static final void setupThread(final Thread thread) {
+        thread.setName(getThreadName());
+        thread.setUncaughtExceptionHandler(uncaughtExceptionHandler);
+    }
+
+    /**
+     * Sets up the current thread (name and uncaught exception handler), and sets the uncaught exception handlers
+     * for other threads. This must be called before any thread creation except the current thread to be effective.
+     */
+    private static final void setupThreads() {
+        setupThread(Thread.currentThread());
+        Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
+    }
+
+    /**
      * Called by the JVM when the program is double clicked or used from the command line.
      * This a CLI program, so it should instantly close if double clicked.
      *
@@ -143,6 +200,7 @@ final class BytecodeVersionAnalyzer {
         final Timing timing = new Timing();
         timing.start();
 
+        setupThreads();
         runCli(args);
 
         timing.finish();
@@ -602,8 +660,6 @@ final class BytecodeVersionAnalyzer {
      * guaranteed to be a valid class.
      */
     private static final Map<String, ClassFileVersion> getClassFileVersionsInJar(final JarFile jar) {
-        final Map<String, ClassFileVersion> classes = new HashMap<>();
-
         final Stream<JarEntry> stream;
         try {
             if (debug && versionedStream == null) {
@@ -616,46 +672,10 @@ final class BytecodeVersionAnalyzer {
             throw handleError(tw);
         }
 
-        final List<String> entriesByPath = new ArrayList<>();
+        final JarEntryVersionConsumer jarEntryVersionConsumer = new JarEntryVersionConsumer(jar);
+        stream.forEach(jarEntryVersionConsumer);
 
-        for (JarEntry entry : stream.toArray(JarEntry[]::new)) {
-            if (!entry.getName().endsWith(".class")) {
-                if (entriesByPath.contains(entry.getName())) {
-                    warning("duplicate entry: " + entry.getName());
-                } else {
-                    entriesByPath.add(entry.getName());
-                }
-            }
-            if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
-                final JarEntry oldEntry = entry;
-                entry = jar.getJarEntry(entry.getName());
-
-                if (shouldSkip(entry, oldEntry, jar)) {
-                    continue;
-                }
-
-                try (final InputStream in = jar.getInputStream(entry)) {
-                    final ClassFileVersion version;
-
-                    try {
-                        version = getClassFileVersion(in);
-                    } catch (final IOException e) {
-                        error("error when processing class: " + e.getMessage());
-                        continue;
-                    }
-
-                    if (!classes.containsKey(entry.getName())) {
-                        classes.put(entry.getName(), version);
-                    } else {
-                        warning("duplicate class: " + entry.getName());
-                    }
-                } catch (final IOException e) {
-                    throw handleError(e);
-                }
-            }
-        }
-
-        return classes;
+        return jarEntryVersionConsumer.classes;
     }
 
     /**
@@ -676,7 +696,7 @@ final class BytecodeVersionAnalyzer {
             boolean compilerGeneratedNonSourceClass = true;
             try {
                 // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
-                Integer.parseInt(nestedClassSplit[1].replace(".class", ""));
+                Integer.parseInt(dotClassPatternMatcher.reset(nestedClassSplit[1]).replaceAll(Matcher.quoteReplacement("")));
             } catch (final NumberFormatException e) {
                 // It is a sub-class
                 compilerGeneratedNonSourceClass = false;
@@ -921,6 +941,86 @@ final class BytecodeVersionAnalyzer {
      */
     private static final void error(final String message) {
         System.err.println(errorPrefix + message);
+    }
+
+    /**
+     * A custom uncaught exception handler that is different from Java's default.
+     * Java's default implementation only ignore {@link ThreadDeath} exceptions.
+     *
+     * We added our {@link StopCodeExecution} too, to do ignored exceptions list.
+     */
+    private static final class BytecodeVersionAnalyzerUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+        @Override
+        public final void uncaughtException(final Thread t, final Throwable e) {
+            if (!(e instanceof ThreadDeath) && !(e instanceof StopCodeExecution)) {
+                System.err.print("Exception in thread \"" + t.getName() + "\" ");
+                e.printStackTrace(System.err);
+            }
+        }
+    }
+
+    /**
+     * The consumer, that processes {@link JarEntry} objects in a {@link JarFile} and stores the class file information.
+     * You should first create a new instance of this class as {@link JarFile} as an argument, then supply this to {@link Stream#forEach(Consumer)} method.
+     *
+     * And then you can get the class file information by accessing {@link JarEntryVersionConsumer#classes}.
+     */
+    private static final class JarEntryVersionConsumer implements Consumer<JarEntry> {
+        private final Map<String, ClassFileVersion> classes = new HashMap<>();
+        private final List<String> entriesByPath = new ArrayList<>();
+
+        private final JarFile jar;
+
+        private JarEntryVersionConsumer(final JarFile jar) {
+            this.jar = jar;
+        }
+
+        @Override
+        public final void accept(JarEntry entry) {
+            if (!entry.getName().endsWith(".class")) {
+                if (entriesByPath.contains(entry.getName())) {
+                    warning("duplicate entry: " + entry.getName());
+                } else {
+                    entriesByPath.add(entry.getName());
+                }
+            }
+            if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
+                final JarEntry oldEntry = entry;
+                entry = jar.getJarEntry(entry.getName());
+
+                if (shouldSkip(entry, oldEntry, jar)) {
+                    return;
+                }
+
+                try (final InputStream in = jar.getInputStream(entry)) {
+                    final ClassFileVersion version;
+
+                    try {
+                        version = getClassFileVersion(in);
+                    } catch (final IOException e) {
+                        error("error when processing class: " + e.getMessage());
+                        return;
+                    }
+
+                    if (!classes.containsKey(entry.getName())) {
+                        classes.put(entry.getName(), version);
+                    } else {
+                        warning("duplicate class: " + entry.getName());
+                    }
+                } catch (final IOException e) {
+                    throw handleError(e);
+                }
+            }
+        }
+
+        @Override
+        public final String toString() {
+            return "JarEntryVersionConsumer{" +
+                "classes=" + classes +
+                ", entriesByPath=" + entriesByPath +
+                ", jar=" + jar +
+                '}';
+        }
     }
 
     /**
