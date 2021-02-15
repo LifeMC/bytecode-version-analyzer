@@ -50,6 +50,14 @@
         <!-- Required for reproducible builds -->
         <project.build.outputTimestamp>2021-2-02T00:00:00Z</project.build.outputTimestamp>
     </properties>
+    
+    <pluginRepositories>
+        <pluginRepository>
+            <id>jcenter</id>
+            <name>jcenter-bintray</name>
+            <url>https://jcenter.bintray.com/</url>
+        </pluginRepository>
+    </pluginRepositories>
 
     <dependencies>
         <dependency>
@@ -418,6 +426,13 @@
                         <lib>${java.home}/jmods/java.base.jmod</lib>
                     </libs>
                 </configuration>
+                <dependencies>
+                    <dependency>
+                      <groupId>com.guardsquare</groupId>
+                      <artifactId>proguard-base</artifactId>
+                      <version>7.0.1</version>
+                    </dependency>
+                </dependencies>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
