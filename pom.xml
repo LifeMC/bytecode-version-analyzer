@@ -151,10 +151,10 @@
                                     <ignoreWhenIdentical>false</ignoreWhenIdentical>
                                 </banDuplicateClasses>
                                 <banCircularDependencies/>
-                                <requireEncoding>
+                                <!--<requireEncoding>
                                     <encoding>UTF-8</encoding>
                                     <includes>src/main/java/**,src/test/java/**</includes>
-                                </requireEncoding>
+                                </requireEncoding>-->
                             </rules>
 
                             <!-- Doing a build for every error is a mess -->
