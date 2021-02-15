@@ -194,12 +194,11 @@ final class BytecodeVersionAnalyzer {
         final ArgumentParseResult result = parseArguments(args, args.length, new StringBuilder());
 
         // Initialize parse result variables
-        final StringBuilder archivePath = result.archivePath;
+        final String path = result.archivePath;
         final boolean printedAtLeastOneVersion = result.printedAtLeastOneVersion;
 
         // OK, we are processing a jar
         final JarFile jar;
-        final String path = archivePath.toString().trim();
 
         try {
             final File archiveFile = new File(path);
@@ -371,7 +370,7 @@ final class BytecodeVersionAnalyzer {
                 archivePath.append(" ");
         }
 
-        return new ArgumentParseResult(printIfBelow, printIfAbove, archivePath, printedAtLeastOneVersion, filter);
+        return new ArgumentParseResult(printIfBelow, printIfAbove, archivePath.toString().trim(), printedAtLeastOneVersion, filter);
     }
 
     /**
@@ -938,9 +937,9 @@ final class BytecodeVersionAnalyzer {
         private final ClassFileVersion printIfAbove;
 
         /**
-         * The archivePath {@link StringBuilder}.
+         * The archivePath {@link String}.
          */
-        private final StringBuilder archivePath;
+        private final String archivePath;
         /**
          * Tracks if we printed class file version of a single class already.
          * If false, we will try to interpret argument as JAR instead.
@@ -957,11 +956,11 @@ final class BytecodeVersionAnalyzer {
          *
          * @param printIfBelow             The printIfBelow argument.
          * @param printIfAbove             The printIfAbove argument.
-         * @param archivePath              The {@link StringBuilder} of archive path.
+         * @param archivePath              The {@link String} of archive path.
          * @param printedAtLeastOneVersion True if printed a version of single class file.
          * @param filter                   The filter used to filter warning messages printed by printIfBelow and printIfAbove.
          */
-        private ArgumentParseResult(final ClassFileVersion printIfBelow, final ClassFileVersion printIfAbove, final StringBuilder archivePath,
+        private ArgumentParseResult(final ClassFileVersion printIfBelow, final ClassFileVersion printIfAbove, final String archivePath,
                                     final boolean printedAtLeastOneVersion, final String filter) {
             this.printIfBelow = printIfBelow;
             this.printIfAbove = printIfAbove;
