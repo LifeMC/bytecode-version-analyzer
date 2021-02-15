@@ -423,7 +423,7 @@
                         <option>-dontobfuscate</option>
                     </options>
                     <libs>
-                        <lib>${java.home}/jmods/java.base.jmod</lib>
+                        <lib>${java.home}/jmods/java.base.jmod(!**.jar;!module-info.class)</lib>
                     </libs>
                 </configuration>
                 <dependencies>
