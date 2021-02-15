@@ -72,12 +72,12 @@ final class BytecodeVersionAnalyzer {
      */
     private static final int PREVIEW_CLASS_FILE_MINOR_VERSION = 65535;
     /**
-    * Result of this value can be used to get a class file version from bits.
-    * (example: {@code HEXADECIMAL_ALL_BITS_ONE & 0x34} will give 52, which is Java 8)
-    *
-    * In fact, this the same number as {@link BytecodeVersionAnalyzer#PREVIEW_CLASS_FILE_MINOR_VERSION}, but we represent it as a
-    * hexadecimal value for clarification.
-    */
+     * Result of this value can be used to get a class file version from bits.
+     * (example: {@code HEXADECIMAL_ALL_BITS_ONE & 0x34} will give 52, which is Java 8)
+     * <p>
+     * In fact, this the same number as {@link BytecodeVersionAnalyzer#PREVIEW_CLASS_FILE_MINOR_VERSION}, but we represent it as a
+     * hexadecimal value for clarification.
+     */
     private static final int HEXADECIMAL_ALL_BITS_ONE = 0xFFFF;
     /**
      * Identifier for Java class files. Classes do not contain this value are invalid.
@@ -640,10 +640,10 @@ final class BytecodeVersionAnalyzer {
 
     /**
      * Determines if the given {@link JarEntry} should be skipped.
-    * <p>
-    * {@link JarEntry JarEntries} will be skipped when they are non-versioned compiler generated classes, i.e synthetic classes.
-    *
-    * @return Whatever the given {@link JarEntry} should be skipped or not.
+     * <p>
+     * {@link JarEntry JarEntries} will be skipped when they are non-versioned compiler generated classes, i.e synthetic classes.
+     *
+     * @return Whatever the given {@link JarEntry} should be skipped or not.
      */
     private static final boolean shouldSkip(final JarEntry entry, final JarEntry oldEntry, final JarFile jar) {
         // Skip the non-versioned compiler generated classes
