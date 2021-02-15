@@ -239,6 +239,9 @@
                             <release>11</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java10</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
@@ -253,6 +256,13 @@
                             <release>15</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java10</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java12</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java13</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java14</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java15</compileSourceRoot>
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
