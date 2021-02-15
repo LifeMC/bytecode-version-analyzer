@@ -359,6 +359,8 @@
                     <encoding>UTF-8</encoding>
                     <charmvnset>UTF-8</charmvnset>
                     <docencoding>UTF-8</docencoding>
+                    
+                    <sourcepath>src/main/java</sourcepath>
                 </configuration>
                 <executions>
                     <execution>
