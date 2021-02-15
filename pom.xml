@@ -311,6 +311,7 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <createSourcesJar>true</createSourcesJar>
                             <minimizeJar>true</minimizeJar>
                             <artifactSet>
                                 <includes>
@@ -344,6 +345,30 @@
                                     </excludes>
                                 </filter>
                             </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <aggregate>true</aggregate>
+
+                    <encoding>UTF-8</encoding>
+                    <charmvnset>UTF-8</charmvnset>
+                    <docencoding>UTF-8</docencoding>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <failOnError>true</failOnError>
+                            <!--<additionalJOption>-Xdoclint:none</additionalJOption>-->
                         </configuration>
                     </execution>
                 </executions>
