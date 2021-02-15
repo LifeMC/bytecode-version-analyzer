@@ -432,8 +432,6 @@
                       <artifactId>proguard-base</artifactId>
                       <version>7.0.1</version>
                     </dependency>
-                </dependencies>
-                <dependencies>
                     <dependency>
                       <groupId>com.guardsquare</groupId>
                       <artifactId>proguard-core</artifactId>
