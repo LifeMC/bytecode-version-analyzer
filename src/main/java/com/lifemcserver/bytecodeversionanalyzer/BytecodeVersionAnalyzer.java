@@ -982,7 +982,7 @@ final class BytecodeVersionAnalyzer {
      */
     private static final class JarEntryVersionConsumer implements Consumer<JarEntry> {
         private final Map<String, ClassFileVersion> classes = new HashMap<>();
-        private final List<String> entries = new ArrayList<>();
+        private final Set<String> entries = new HashSet<>();
 
         private final JarFile jar;
 
