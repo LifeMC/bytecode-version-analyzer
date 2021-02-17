@@ -153,13 +153,7 @@ final class BytecodeVersionAnalyzer {
      * @return An unique thread suffix in the format " #number".
      */
     private static final String getThreadSuffix() {
-        ++threadCount;
-
-        if (threadCount > 1) {
-            return " #" + threadCount;
-        }
-
-        return "";
+        return ++threadCount > 1L ? " #" + threadCount : "";
     }
 
     /**
@@ -290,9 +284,7 @@ final class BytecodeVersionAnalyzer {
             throw handleError(e);
         }
 
-        final Map<ClassFileVersion, Integer> counter = new HashMap<>();
-
-        analyze(classes, counter, result.printIfBelow, result.printIfAbove, result.filter);
+        analyze(classes, new HashMap<>(), result.printIfBelow, result.printIfAbove, result.filter);
     }
 
     /**
@@ -824,8 +816,9 @@ final class BytecodeVersionAnalyzer {
                     return;
                 }
 
-                if (stream == null)
+                if (stream == null) {
                     return;
+                }
             }
 
             final MavenXpp3Reader reader = new MavenXpp3Reader();
@@ -946,7 +939,7 @@ final class BytecodeVersionAnalyzer {
     /**
      * A custom uncaught exception handler that is different from Java's default.
      * Java's default implementation only ignore {@link ThreadDeath} exceptions.
-     *
+     * <p>
      * We added our {@link StopCodeExecution} too, to do ignored exceptions list.
      */
     private static final class BytecodeVersionAnalyzerUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
@@ -962,7 +955,7 @@ final class BytecodeVersionAnalyzer {
     /**
      * The consumer, that processes {@link JarEntry} objects in a {@link JarFile} and stores the class file information.
      * You should first create a new instance of this class as {@link JarFile} as an argument, then supply this to {@link Stream#forEach(Consumer)} method.
-     *
+     * <p>
      * And then you can get the class file information by accessing {@link JarEntryVersionConsumer#classes}.
      */
     private static final class JarEntryVersionConsumer implements Consumer<JarEntry> {
@@ -1015,6 +1008,7 @@ final class BytecodeVersionAnalyzer {
 
         @Override
         public final String toString() {
+            //noinspection MagicCharacter
             return "JarEntryVersionConsumer{" +
                 "classes=" + classes +
                 ", entriesByPath=" + entriesByPath +
