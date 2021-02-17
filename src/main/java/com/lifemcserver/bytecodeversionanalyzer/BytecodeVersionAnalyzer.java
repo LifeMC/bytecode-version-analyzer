@@ -197,7 +197,7 @@ final class BytecodeVersionAnalyzer {
         setupThreads();
         runCli(args);
 
-        timing.finish();
+        timing.stop();
         info("Took " + timing);
     }
 
@@ -1108,17 +1108,17 @@ final class BytecodeVersionAnalyzer {
 
         /**
          * Resets the timing to current time,
-         * calls both {@link Timing#start()} and {@link Timing#finish()}.
+         * calls both {@link Timing#start()} and {@link Timing#stop()}.
          */
         private final void reset() {
             start();
-            finish();
+            stop();
         }
 
         /**
          * Stops the timing.
          */
-        private final void finish() {
+        private final void stop() {
             finishTime = System.nanoTime();
         }
 
