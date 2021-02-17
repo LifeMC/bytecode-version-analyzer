@@ -667,6 +667,10 @@ final class BytecodeVersionAnalyzer {
         final JarEntryVersionConsumer jarEntryVersionConsumer = new JarEntryVersionConsumer(jar);
         stream.forEach(jarEntryVersionConsumer);
 
+        if (debug) {
+            info("processed " + jarEntryVersionConsumer.entries.size() + " entries");
+        }
+
         return jarEntryVersionConsumer.classes;
     }
 
