@@ -671,6 +671,32 @@ final class BytecodeVersionAnalyzer {
     }
 
     /**
+     * Checks if the given {@link CharSequence} is a digit.
+     * Uses {@link Character#isDigit(char)}, but checks for all characters.
+     * <p>
+     * It also supports negative digits.
+     *
+     * @param cs The {@link CharSequence} to check.
+     * @return True if the {@link CharSequence} only consists of digits.
+     */
+    private static final boolean isDigit(final CharSequence cs) {
+        final int csLength = cs.length();
+
+        for (int i = 0; i < csLength; i++) {
+            //noinspection MagicCharacter
+            if (i == 0 && cs.charAt(i) == '-') {
+                continue;
+            }
+
+            if (!Character.isDigit(cs.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Determines if the given {@link JarEntry} should be skipped.
      * <p>
      * {@link JarEntry JarEntries} will be skipped when they are non-versioned compiler generated classes, i.e synthetic classes.
@@ -685,16 +711,8 @@ final class BytecodeVersionAnalyzer {
         if (entry.getName().contains("$") && entry.hashCode() == oldEntry.hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
             final String[] nestedClassSplit = dollarPattern.split(entry.getName());
 
-            boolean compilerGeneratedNonSourceClass = true;
-            try {
-                // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
-                Integer.parseInt(dotClassPatternMatcher.reset(nestedClassSplit[1]).replaceAll(Matcher.quoteReplacement("")));
-            } catch (final NumberFormatException e) {
-                // It is a sub-class
-                compilerGeneratedNonSourceClass = false;
-            }
-
-            if (compilerGeneratedNonSourceClass) { // A synthetic accessor class, or an anonymous/lambda class.
+            // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
+            if (isDigit(dotClassPatternMatcher.reset(nestedClassSplit[1]).replaceAll(""))) { // A synthetic accessor class, or an anonymous/lambda class.
                 final String baseClassName = nestedClassSplit[0] + ".class";
                 final JarEntry baseClassJarEntry = jar.getJarEntry(baseClassName);
 
