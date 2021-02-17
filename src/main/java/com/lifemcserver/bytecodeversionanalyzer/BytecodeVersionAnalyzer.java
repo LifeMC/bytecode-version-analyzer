@@ -101,10 +101,6 @@ final class BytecodeVersionAnalyzer {
      */
     private static final double ONE_HUNDRED = 100.0D;
     /**
-     * Dollar literal pattern that matches a dollar sign.
-     */
-    private static final Pattern dollarPattern = Pattern.compile("$", Pattern.LITERAL);
-    /**
      * Uncaught exception handler for the program.
      */
     private static final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = new BytecodeVersionAnalyzerUncaughtExceptionHandler();
@@ -677,8 +673,6 @@ final class BytecodeVersionAnalyzer {
     /**
      * Checks if the given {@link CharSequence} is a digit.
      * Uses {@link Character#isDigit(char)}, but checks for all characters.
-     * <p>
-     * It also supports negative digits.
      *
      * @param cs The {@link CharSequence} to check.
      * @return True if the {@link CharSequence} only consists of digits.
@@ -687,11 +681,6 @@ final class BytecodeVersionAnalyzer {
         final int csLength = cs.length();
 
         for (int i = 0; i < csLength; i++) {
-            //noinspection MagicCharacter
-            if (i == 0 && cs.charAt(i) == '-') {
-                continue;
-            }
-
             if (!Character.isDigit(cs.charAt(i))) {
                 return false;
             }
@@ -713,7 +702,7 @@ final class BytecodeVersionAnalyzer {
         // JarEntry or ZipEntry does not implement a equals method, but they implement a hashCode method.
         // So we use it to check equality.
         if (entry.getName().contains("$") && entry.hashCode() == oldEntry.hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
-            final String[] nestedClassSplit = dollarPattern.split(entry.getName());
+            final String[] nestedClassSplit = entry.getName().split("\\$"); // Note: This will not impact performance, String#split has a fast path for single character arguments.
 
             // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
             if (isDigit(dotClassPatternMatcher.reset(nestedClassSplit[1]).replaceAll(""))) { // A synthetic accessor class, or an anonymous/lambda class.
@@ -1170,11 +1159,6 @@ final class BytecodeVersionAnalyzer {
      */
     private static final class ClassFileVersion {
         /**
-         * The dot pattern to split inputs from it.
-         */
-        private static final Pattern dotPattern = Pattern.compile(".", Pattern.LITERAL);
-
-        /**
          * The major version of the class file.
          */
         private final int major;
@@ -1231,7 +1215,7 @@ final class BytecodeVersionAnalyzer {
          * @return The {@link ClassFileVersion} representing the given bytecode version string.
          */
         private static final ClassFileVersion fromBytecodeVersionString(final String bytecodeVersionString) {
-            final String[] splitByDot = dotPattern.split(bytecodeVersionString);
+            final String[] splitByDot = bytecodeVersionString.split("\\."); // Note: This will not impact performance, String#split has a fast path for single character arguments.
 
             if (splitByDot.length != 2) {
                 throw new IllegalArgumentException("not in major.minor format: " + bytecodeVersionString);
