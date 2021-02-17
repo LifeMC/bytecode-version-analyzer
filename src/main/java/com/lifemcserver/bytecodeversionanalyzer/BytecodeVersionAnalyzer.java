@@ -667,6 +667,10 @@ final class BytecodeVersionAnalyzer {
         final JarEntryVersionConsumer jarEntryVersionConsumer = new JarEntryVersionConsumer(jar);
         stream.forEach(jarEntryVersionConsumer);
 
+        if (debug) {
+            info("processed " + jarEntryVersionConsumer.entries.size() + " entries");
+        }
+
         return jarEntryVersionConsumer.classes;
     }
 
@@ -978,7 +982,7 @@ final class BytecodeVersionAnalyzer {
      */
     private static final class JarEntryVersionConsumer implements Consumer<JarEntry> {
         private final Map<String, ClassFileVersion> classes = new HashMap<>();
-        private final List<String> entriesByPath = new ArrayList<>();
+        private final List<String> entries = new ArrayList<>();
 
         private final JarFile jar;
 
@@ -988,13 +992,12 @@ final class BytecodeVersionAnalyzer {
 
         @Override
         public final void accept(JarEntry entry) {
-            if (!entry.getName().endsWith(".class")) {
-                if (entriesByPath.contains(entry.getName())) {
-                    warning("duplicate entry: " + entry.getName());
-                } else {
-                    entriesByPath.add(entry.getName());
-                }
+            if (entries.contains(entry.getName())) {
+                warning("duplicate entry: " + entry.getName());
+            } else {
+                entries.add(entry.getName());
             }
+
             if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
                 final JarEntry oldEntry = entry;
                 entry = jar.getJarEntry(entry.getName());
@@ -1029,7 +1032,7 @@ final class BytecodeVersionAnalyzer {
             //noinspection MagicCharacter
             return "JarEntryVersionConsumer{" +
                 "classes=" + classes +
-                ", entriesByPath=" + entriesByPath +
+                ", entries=" + entries +
                 ", jar=" + jar +
                 '}';
         }
