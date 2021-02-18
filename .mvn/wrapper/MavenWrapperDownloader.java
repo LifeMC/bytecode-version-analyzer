@@ -1,6 +1,6 @@
 import java.util.Properties;
 
-public class MavenWrapperDownloader {
+final class MavenWrapperDownloader {
 
     private static final String WRAPPER_VERSION = "0.5.5";
     /**
