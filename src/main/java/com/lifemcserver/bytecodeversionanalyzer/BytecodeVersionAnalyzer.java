@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -273,6 +274,8 @@ final class BytecodeVersionAnalyzer {
         }
 
         // Process the jar
+        printJarManifestInformation(jar);
+
         final Map<String, ClassFileVersion> classes = getClassFileVersionsInJar(jar);
         try {
             jar.close();
@@ -281,6 +284,59 @@ final class BytecodeVersionAnalyzer {
         }
 
         analyze(classes, new HashMap<>(), result.printIfBelow, result.printIfAbove, result.filter);
+    }
+
+    /**
+     * Prints the JAR manifest information for the given {@link JarFile}.
+     *
+     * @param jar The {@link JarFile}.
+     */
+    private static final void printJarManifestInformation(final JarFile jar) {
+        final Manifest manifest;
+        try {
+            manifest = jar.getManifest();
+        } catch (final IOException e) {
+            throw handleError(e);
+        }
+
+        if (manifest == null) {
+            warning("jar has no manifest");
+        } else {
+            if (isMultiRelease(manifest)) {
+                info("jar is a multi release jar");
+            } else {
+                info("jar is not a multi release jar");
+            }
+
+            if (isSealed(manifest)) {
+                info("the jar is sealed");
+            } else {
+                info("the jar is not sealed");
+            }
+
+            if (isSigned(manifest)) {
+                info("the jar is signed");
+            } else {
+                info("the jar is not signed");
+            }
+        }
+    }
+
+    private static final boolean isMultiRelease(final Manifest manifest) {
+        return "true".equals(manifest.getMainAttributes().getValue("Multi-Release"));
+    }
+
+    private static final boolean isSealed(final Manifest manifest) {
+        return "true".equals(manifest.getMainAttributes().getValue("Sealed"));
+    }
+
+    private static final boolean isSigned(final Manifest manifest) {
+        for (final String key : manifest.getEntries().keySet()) {
+            if (key.endsWith("-Digest-Manifest-Main-Attributes") || key.endsWith("-Digest-Manifest") || key.endsWith("-Digest")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -985,6 +1041,10 @@ final class BytecodeVersionAnalyzer {
                 warning("duplicate entry: " + entry.getName());
             } else {
                 entries.add(entry.getName());
+            }
+
+            if (entry.getName().endsWith(".RSA") || entry.getName().endsWith(".DSA") || entry.getName().endsWith(".SF") || entry.getName().endsWith(".EC") || entry.getName().startsWith("SIG-")) {
+                info("found signing file: " + entry.getName());
             }
 
             if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
