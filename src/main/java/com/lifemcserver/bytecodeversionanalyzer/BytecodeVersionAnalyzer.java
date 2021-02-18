@@ -598,7 +598,7 @@ final class BytecodeVersionAnalyzer {
      */
     private static final DecimalFormat getTwoNumbersAfterDotFormat() {
         final DecimalFormat format = new DecimalFormat("##.##");
-        format.setRoundingMode(RoundingMode.DOWN);
+        format.setRoundingMode(RoundingMode.HALF_UP);
 
         return format;
     }
