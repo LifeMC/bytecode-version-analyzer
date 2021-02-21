@@ -448,6 +448,13 @@ final class BytecodeVersionAnalyzer {
                 case "--filter":
                     startOfArgumentValue = "filter";
                     continue;
+                case "--loadPom":
+                    getModel();
+                    continue;
+                case "--parallel":
+                    // reserved argument
+                    warning("reserved argument usage detected; this option currently does not have any effect but it will in future.");
+                    continue;
                 case "--debug":
                     debug = true;
                     info("note: debug mode is enabled");
