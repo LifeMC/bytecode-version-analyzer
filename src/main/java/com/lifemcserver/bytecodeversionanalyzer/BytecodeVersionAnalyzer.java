@@ -309,27 +309,50 @@ final class BytecodeVersionAnalyzer {
             }
 
             if (isSealed(manifest)) {
-                info("the jar is sealed");
+                info("the jar is sealed globally");
             } else {
-                info("the jar is not sealed");
+                info("the jar is not sealed globally");
             }
 
             if (isSigned(manifest)) {
-                info("the jar is signed");
+                info("the jar is signed from manifest");
             } else {
-                info("the jar is not signed");
+                info("the jar is not signed from manifest");
             }
         }
     }
 
+    /**
+     * Checks if the given {@link Manifest} contains a Multi-Release: true definition.
+     * This method does not guarantee the JAR being treated as such from JVM or {@link JarFile} APIs in any way.
+     *
+     * @param manifest The {@link Manifest} to check for Multi-Release: true definition.
+     * @return True if the given {@link Manifest} contains a Multi-Release: true definition.
+     */
     private static final boolean isMultiRelease(final Manifest manifest) {
         return "true".equals(manifest.getMainAttributes().getValue("Multi-Release"));
     }
 
+    /**
+     * Checks if the given {@link Manifest} contains a Sealed: true definition.
+     * This method does not guarantee the JAR being treated as such from JVM or {@link JarFile} APIs in any way.
+     *
+     * @param manifest The {@link Manifest} to check for Sealed: true definition.
+     * @return True if the given {@link Manifest} contains a Sealed: true definition.
+     */
     private static final boolean isSealed(final Manifest manifest) {
         return "true".equals(manifest.getMainAttributes().getValue("Sealed"));
     }
 
+    /**
+     * Checks if the given {@link Manifest} contains signature definitions.
+     * This method does not guarantee the JAR being treated as such from JVM or {@link JarFile} APIs in any way.
+     * <p>
+     * Note: This method does not check signing files, only manifest entries.
+     *
+     * @param manifest The {@link Manifest} to check for signature definitions.
+     * @return True if the given {@link Manifest} contains signature definitions.
+     */
     private static final boolean isSigned(final Manifest manifest) {
         for (final String key : manifest.getEntries().keySet()) {
             if (key.endsWith("-Digest-Manifest-Main-Attributes") || key.endsWith("-Digest-Manifest") || key.endsWith("-Digest")) {
@@ -1026,11 +1049,24 @@ final class BytecodeVersionAnalyzer {
      * And then you can get the class file information by accessing {@link JarEntryVersionConsumer#classes}.
      */
     private static final class JarEntryVersionConsumer implements Consumer<JarEntry> {
+        /**
+         * The map storing entry (class) names and their versions.
+         */
         private final Map<String, ClassFileVersion> classes = new HashMap<>();
+        /**
+         * A set which stores all entry names, to check for any duplicate.
+         */
         private final Set<String> entries = new HashSet<>();
-
+        /**
+         * The {@link JarFile} of the {@link JarEntry} to consume.
+         */
         private final JarFile jar;
 
+        /**
+         * Creates a new {@link JarEntryVersionConsumer}.
+         *
+         * @param jar The {@link JarFile} that will own {@link JarEntry JarEntries}.
+         */
         private JarEntryVersionConsumer(final JarFile jar) {
             this.jar = jar;
         }
@@ -1076,6 +1112,11 @@ final class BytecodeVersionAnalyzer {
             }
         }
 
+        /**
+         * Returns a debug string for this {@link JarEntryVersionConsumer} instance.
+         *
+         * @return Debug string for this {@link JarEntryVersionConsumer} instance.
+         */
         @Override
         public final String toString() {
             //noinspection MagicCharacter
