@@ -820,7 +820,7 @@ final class BytecodeVersionAnalyzer {
      */
     @SuppressWarnings("DuplicateThrows")
     private static final ClassFileVersion getClassFileVersion(final File file) throws FileNotFoundException, IOException {
-        try (final InputStream in = new FileInputStream(file)) {
+        try (final InputStream in = new BufferedInputStream(new FileInputStream(file))) {
             return getClassFileVersion(in);
         }
     }
@@ -901,7 +901,7 @@ final class BytecodeVersionAnalyzer {
                     final File file = new File(path.getParent().getParent().toString(), "pom.xml");
 
                     if (file.exists()) {
-                        stream = new FileInputStream(file);
+                        stream = new BufferedInputStream(new FileInputStream(file));
                     }
                 } catch (final FileNotFoundException | URISyntaxException e) {
                     return;
@@ -1072,45 +1072,92 @@ final class BytecodeVersionAnalyzer {
             this.jar = jar;
         }
 
-        @Override
-        public final void accept(JarEntry entry) {
-            if (entries.contains(entry.getName())) {
-                warning("duplicate entry: " + entry.getName());
-            } else {
-                entries.add(entry.getName());
+        /**
+         * Checks for duplicates and prints a warning when a duplicate is found.
+         * If a duplicate entry exists on a JAR, it may cause issues.
+         *
+         * @param entries The entries collection to add and check for duplicates.
+         * @param name    The name of the entry to check for duplicate and add if not.
+         */
+        private static final void duplicateEntryCheck(final Collection<String> entries, final String name) {
+            if (!entries.add(name)) {
+                warning("duplicate entry: " + name);
             }
+        }
 
-            if (entry.getName().endsWith(".RSA") || entry.getName().endsWith(".DSA") || entry.getName().endsWith(".SF") || entry.getName().endsWith(".EC") || entry.getName().startsWith("SIG-")) {
-                info("found signing file: " + entry.getName());
+        /**
+         * Checks for signing extensions on the given file name and prints an information message
+         * if the file extension looks like a signing extension.
+         *
+         * @param fileName The file name to check for signing extensions.
+         */
+        private static final void detectSigningFile(final String fileName) {
+            if (fileName.endsWith(".RSA") || fileName.endsWith(".DSA") || fileName.endsWith(".SF") || fileName.endsWith(".EC") || fileName.startsWith("SIG-")) {
+                info("found signing file: " + fileName);
             }
+        }
 
-            if (!entry.isDirectory() && entry.getName().endsWith(".class") && !entry.getName().contains("META-INF/versions")) {
-                final JarEntry oldEntry = entry;
-                entry = jar.getJarEntry(entry.getName());
+        /**
+         * Processes a class.
+         *
+         * @param classes   The classes map to put class file version information into.
+         * @param jar       The {@link JarFile} to get a {@link InputStream} via {@link JarFile#getInputStream(ZipEntry)}.
+         * @param entry     The {@link JarEntry} that represents a class file to process.
+         * @param entryName The name of the given {@link JarEntry}.
+         */
+        private static final void processClass(final Map<String, ClassFileVersion> classes, final JarFile jar, final JarEntry entry, final String entryName) {
+            try (final InputStream in = new BufferedInputStream(jar.getInputStream(entry))) {
+                final ClassFileVersion version;
 
-                if (shouldSkip(entry, oldEntry, jar)) {
+                try {
+                    version = getClassFileVersion(in);
+                } catch (final IOException e) {
+                    error("error when processing class: " + e.getMessage());
                     return;
                 }
 
-                try (final InputStream in = jar.getInputStream(entry)) {
-                    final ClassFileVersion version;
+                classes.put(entryName, version);
+            } catch (final IOException e) {
+                throw handleError(e);
+            }
+        }
 
-                    try {
-                        version = getClassFileVersion(in);
-                    } catch (final IOException e) {
-                        error("error when processing class: " + e.getMessage());
+        /**
+         * Process an entry.
+         *
+         * @param classes The classes map to hold information about classes and their versions.
+         * @param entries The entries map to keep track of duplicate entries.
+         * @param jar     The {@link JarFile} for refreshing the entry for versioning and getting {@link InputStream}.
+         * @param entry   The {@link JarEntry} to start with before refreshing.
+         */
+        private static final void accept0(final Map<String, ClassFileVersion> classes, final Collection<String> entries,
+                                          final JarFile jar, final JarEntry entry) {
+            final String name = entry.getName();
+            duplicateEntryCheck(entries, name);
+
+            if (!entry.isDirectory()) {
+                detectSigningFile(name);
+
+                if (name.endsWith(".class") && !name.contains("META-INF/versions")) {
+                    final JarEntry newEntry = jar.getJarEntry(name);
+
+                    if (shouldSkip(newEntry, entry, jar)) {
                         return;
                     }
 
-                    if (!classes.containsKey(entry.getName())) {
-                        classes.put(entry.getName(), version);
-                    } else {
-                        warning("duplicate class: " + entry.getName());
-                    }
-                } catch (final IOException e) {
-                    throw handleError(e);
+                    processClass(classes, jar, newEntry, name);
                 }
             }
+        }
+
+        /**
+         * Processes the given entry.
+         *
+         * @param entry The {@link JarEntry} to process.
+         */
+        @Override
+        public final void accept(final JarEntry entry) {
+            accept0(classes, entries, jar, entry);
         }
 
         /**
