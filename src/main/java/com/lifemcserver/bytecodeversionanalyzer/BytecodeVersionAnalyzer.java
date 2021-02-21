@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.Year;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -676,8 +677,8 @@ final class BytecodeVersionAnalyzer {
      * @return A new {@link DecimalFormat} that removes verbose precision from floating point numbers.
      */
     private static final DecimalFormat getTwoNumbersAfterDotFormat() {
-        final DecimalFormat format = new DecimalFormat("##.##");
-        format.setRoundingMode(RoundingMode.HALF_UP);
+        final DecimalFormat format = new DecimalFormat("##.##", new DecimalFormatSymbols(Locale.ROOT));
+        format.setRoundingMode(RoundingMode.UP);
 
         return format;
     }
