@@ -17,8 +17,8 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Year;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import java.util.concurrent.*;
+import java.util.function.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -825,8 +825,7 @@ final class BytecodeVersionAnalyzer {
      * @throws IOException If the file is not a valid Java class or contain
      *                     illegal major / minor version specifications.
      */
-    @SuppressWarnings("DuplicateThrows")
-    private static final ClassFileVersion getClassFileVersion(final File file) throws FileNotFoundException, IOException {
+    private static final ClassFileVersion getClassFileVersion(final File file) throws IOException {
         try (final InputStream in = new BufferedInputStream(new FileInputStream(file))) {
             return getClassFileVersion(in);
         }

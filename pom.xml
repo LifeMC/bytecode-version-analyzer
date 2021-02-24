@@ -219,6 +219,7 @@
                         <arg>-g</arg>
                         <arg>-parameters</arg>
 
+                        <arg>-Xlint:all</arg>
                         <arg>-Xpkginfo:always</arg>
                         <!--<arg>-Xwarn:-tasks</arg>-->
 

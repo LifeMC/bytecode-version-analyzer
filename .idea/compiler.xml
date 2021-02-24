@@ -25,7 +25,7 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="bytecode-version-analyzer" options="-deprecation -encoding UTF-8 -g -parameters -Xpkginfo:always -O" />
+      <module name="bytecode-version-analyzer" options="-deprecation -encoding UTF-8 -g -parameters -Xlint:all -Xpkginfo:always -O" />
     </option>
   </component>
 </project>
