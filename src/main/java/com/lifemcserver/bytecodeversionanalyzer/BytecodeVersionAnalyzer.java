@@ -42,21 +42,21 @@ final class BytecodeVersionAnalyzer {
     /**
      * The prefix added to warning messages.
      */
-    private static final String warningPrefix = "warning: ";
+    private static final String WARNING_PREFIX = "warning: ";
     /**
      * The prefix added to error messages.
      */
-    private static final String errorPrefix = "error: ";
+    private static final String ERROR_PREFIX = "error: ";
 
     // Required for getting version at runtime
     /**
      * The Maven groupId of the project.
      */
-    private static final String groupId = "com.lifemcserver";
+    private static final String GROUP_ID = "com.lifemcserver";
     /**
      * The Maven artifactId of the project.
      */
-    private static final String artifactId = "bytecode-version-analyzer";
+    private static final String ARTIFACT_ID = "bytecode-version-analyzer";
 
     /**
      * The decimal format for two numbers at most after the first dot in non-integer/long numbers.
@@ -895,10 +895,10 @@ final class BytecodeVersionAnalyzer {
 
     /**
      * Loads the pom.xml file either from the content root (works when running/building from IDE)
-     * or the META-INF/maven directory, using the {@link BytecodeVersionAnalyzer#groupId} and {@link BytecodeVersionAnalyzer#artifactId}.
+     * or the META-INF/maven directory, using the {@link BytecodeVersionAnalyzer#GROUP_ID} and {@link BytecodeVersionAnalyzer#ARTIFACT_ID}.
      */
     private static final void loadPom() {
-        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/" + groupId + "/" + artifactId + "/pom.xml");
+        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF" + File.separator + "maven" + File.separator + GROUP_ID + File.separator + ARTIFACT_ID + File.separator + "pom.xml");
 
         try {
             if (stream == null) {
@@ -1014,7 +1014,7 @@ final class BytecodeVersionAnalyzer {
      * @param message The message to be printed.
      */
     private static final void warning(final String message) {
-        System.err.println(warningPrefix + message);
+        System.err.println(WARNING_PREFIX + message);
     }
 
     /**
@@ -1030,7 +1030,7 @@ final class BytecodeVersionAnalyzer {
      * @param message The message to be printed.
      */
     private static final void error(final String message) {
-        System.err.println(errorPrefix + message);
+        System.err.println(ERROR_PREFIX + message);
     }
 
     /**
@@ -1144,7 +1144,7 @@ final class BytecodeVersionAnalyzer {
             if (!entry.isDirectory()) {
                 detectSigningFile(name);
 
-                if (name.endsWith(".class") && !name.contains("META-INF/versions")) {
+                if (name.endsWith(".class") && !name.contains("META-INF" + File.separator + "versions")) {
                     final JarEntry newEntry = jar.getJarEntry(name);
 
                     if (shouldSkip(newEntry, entry, jar)) {
