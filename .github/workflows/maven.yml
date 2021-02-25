@@ -2,6 +2,8 @@ name: Java CI
 
 on:
     pull_request:
+        branches:
+            - main
     push:
         branches:
             - main
@@ -65,7 +67,7 @@ jobs:
                     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
                 # org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
                 run: |
-                    mvnw clean verify --threads 1C --batch-mode --errors
+                    ./mvnw clean verify --threads 1C --batch-mode --errors
 
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v2.2.2

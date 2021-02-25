@@ -5,4 +5,4 @@ extraction:
         index:
             java_version: 15
             build_command:
-                - mvnw clean verify --threads 1C --batch-mode --errors
+                - ./mvnw clean verify --threads 1C --batch-mode --errors
