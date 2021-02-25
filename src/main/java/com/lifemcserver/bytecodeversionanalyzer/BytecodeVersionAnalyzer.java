@@ -1040,6 +1040,13 @@ final class BytecodeVersionAnalyzer {
      * We added our {@link StopCodeExecution} too, to do ignored exceptions list.
      */
     private static final class BytecodeVersionAnalyzerUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+        /**
+         * Handles an uncaught exception exactly like Java's default {@link Thread.UncaughtExceptionHandler},
+         * but also ignoring {@link StopCodeExecution} together with {@link ThreadDeath}.
+         *
+         * @param t The thread that generated the exception.
+         * @param e The exception that occurred.
+         */
         @Override
         public final void uncaughtException(final Thread t, final Throwable e) {
             if (!(e instanceof ThreadDeath) && !(e instanceof StopCodeExecution)) {
