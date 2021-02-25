@@ -1,16 +1,21 @@
 name: Java CI
 
-on: [ push, pull_request ]
+on:
+    pull_request:
+    push:
+        branches:
+            - main
 
 jobs:
     build:
-
-        runs-on: ubuntu-20.04
 
         strategy:
             fail-fast: true
             matrix:
                 language: [ 'java' ]
+                os: [ubuntu-20.04, macos-latest]
+
+        runs-on: ${{ matrix.os }}
 
         steps:
             -   name: Cache
@@ -60,7 +65,7 @@ jobs:
                     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
                 # org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
                 run: |
-                    mvn clean verify --threads 1C --batch-mode --errors
+                    mvnw clean verify --threads 1C --batch-mode --errors
 
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v2.2.2
