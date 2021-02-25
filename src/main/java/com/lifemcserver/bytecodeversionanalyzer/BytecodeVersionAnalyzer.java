@@ -910,7 +910,7 @@ final class BytecodeVersionAnalyzer {
      * or the META-INF/maven directory, using the {@link BytecodeVersionAnalyzer#GROUP_ID} and {@link BytecodeVersionAnalyzer#ARTIFACT_ID}.
      */
     private static final void loadPom() {
-        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF" + File.separator + "maven" + File.separator + GROUP_ID + File.separator + ARTIFACT_ID + File.separator + "pom.xml");
+        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/" + GROUP_ID + "/" + ARTIFACT_ID + "/pom.xml");
 
         try {
             if (stream == null) {
@@ -1671,7 +1671,7 @@ final class BytecodeVersionAnalyzer {
             if (!entry.isDirectory()) {
                 detectSigningFile(name);
 
-                if (name.endsWith(".class") && !name.contains("META-INF" + File.separator + "versions")) {
+                if (name.endsWith(".class") && !name.contains("META-INF/versions")) {
                     final JarEntry newEntry = jar.getJarEntry(name);
 
                     if (shouldSkip(newEntry, entry, jar)) {
