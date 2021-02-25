@@ -6,7 +6,7 @@
 
     <groupId>com.lifemcserver</groupId>
     <artifactId>bytecode-version-analyzer</artifactId>
-    <version>0.3</version>
+    <version>0.4</version>
 
     <name>Bytecode Version Analyzer</name>
     <description>Analyzer for bytecode versions of class files in a JAR file.</description>
