@@ -9,7 +9,6 @@
     <version>0.3</version>
 
     <name>Bytecode Version Analyzer</name>
-
     <description>Analyzer for bytecode versions of class files in a JAR file.</description>
 
     <url>https://github.com/LifeMC/bytecode-version-analyzer/</url>
@@ -34,6 +33,35 @@
         <system>GitHub</system>
         <url>https://github.com/LifeMC/bytecode-version-analyzer/issues/</url>
     </issueManagement>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub LifeMC Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/LifeMC/bytecode-version-analyzer/</url>
+        </repository>
+    </distributionManagement>
+
+    <organization>
+        <name>LifeMC</name>
+        <url>https://www.lifemcserver.com/</url>
+    </organization>
+
+    <developers>
+        <developer>
+            <id>TheDGOfficial</id>
+            <name>Mustafa Öncel</name>
+
+            <email>mustafaoncel92@gmail.com</email>
+            <url>https://www.lifemcserver.com/</url>
+
+            <roles>
+                <role>developer</role>
+            </roles>
+
+            <timezone>Europe/Istanbul</timezone>
+        </developer>
+    </developers>
 
     <properties>
         <project.mainClass>com.lifemcserver.bytecodeversionanalyzer.BytecodeVersionAnalyzer</project.mainClass>
@@ -412,13 +440,5 @@
             </plugin>
         </plugins>
     </build>
-
-    <distributionManagement>
-        <repository>
-            <id>github</id>
-            <name>GitHub LifeMC Apache Maven Packages</name>
-            <url>https://maven.pkg.github.com/LifeMC/bytecode-version-analyzer/</url>
-        </repository>
-    </distributionManagement>
 
 </project>
