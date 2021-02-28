@@ -345,9 +345,11 @@
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <!-- JAR signing stuff -->
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.EC</exclude>
+                                        <exclude>META-INF/SIG-*</exclude>
                                     </excludes>
                                 </filter>
                                 <filter>
