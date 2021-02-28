@@ -267,39 +267,31 @@ final class BytecodeVersionAnalyzer {
         final String path = result.archivePath;
         final boolean printedAtLeastOneVersion = result.printedAtLeastOneVersion;
 
-        // OK, we are processing a jar
-        final JarFile jar;
+        // Check file path
+        final File archiveFile = new File(path);
 
-        try {
-            final File archiveFile = new File(path);
-
-            if (!archiveFile.exists()) {
-                if (!printedAtLeastOneVersion) {
-                    error("archive file does not exist: " + path + " (tip: use quotes if the path contains space)");
-                }
-                return;
+        if (!archiveFile.exists()) { // Does not exist
+            if (!printedAtLeastOneVersion) {
+                error("archive file does not exist: " + path + " (tip: use quotes if the path contains space)");
             }
-
-            if (!archiveFile.isFile()) {
-                error("can't process a directory: " + path);
-                return;
-            }
-
-            if (!archiveFile.canRead()) {
-                error("can't read the file: " + path);
-            }
-
-            jar = newJarFile(path);
-        } catch (final IOException e) {
-            throw handleError(e);
+            return;
         }
 
-        // Process the jar
-        printJarManifestInformation(jar);
+        if (!archiveFile.isFile()) { // Is a directory
+            error("can't process a directory: " + path);
+            return;
+        }
 
-        final Map<String, ClassFileVersion> classes = getClassFileVersionsInJar(jar);
-        try {
-            jar.close();
+        if (!archiveFile.canRead()) { // Can't read
+            error("can't read the file: " + path);
+        }
+
+        final Map<String, ClassFileVersion> classes;
+
+        try (final JarFile jar = newJarFile(path)) {
+            // Process the jar
+            printJarManifestInformation(jar);
+            classes = getClassFileVersionsInJar(jar);
         } catch (final IOException e) {
             throw handleError(e);
         }
