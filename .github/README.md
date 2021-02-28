@@ -75,8 +75,6 @@ You can find old libraries that compile with/into Java 6, or you can find for ex
 
 - [ ] Refactor code to make it more organized
 - [ ] Add tests
-- [ ] Option to print only packages with below/above the specified version (i.e. not every single class, reduces
-  messages)
 - [ ] Use a logger to log messages/errors
 
 # Security Policy
