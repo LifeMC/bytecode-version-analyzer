@@ -201,7 +201,7 @@ final class BytecodeVersionAnalyzer {
 
     /**
      * Called by the JVM when the program is double clicked or used from the command line.
-     * This a CLI program, so it should instantly close if double clicked.
+     * This a CLI program, so it should instantly shutdown if double clicked.
      *
      * @param args The arguments array passed by the JVM to indicate command line arguments.
      */
