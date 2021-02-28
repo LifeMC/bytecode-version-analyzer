@@ -6,8 +6,6 @@
  * <p>
  * It can display a metric like % classes use Java 8 or such,
  * or warn legacy/bleeding edge ones, too.
- *
- * @moduleGraph
  */
 module com.lifemcserver.bytecodeversionanalyzer {
     requires maven.model;
