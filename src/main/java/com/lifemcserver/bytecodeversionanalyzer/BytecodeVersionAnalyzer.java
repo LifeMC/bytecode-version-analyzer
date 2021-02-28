@@ -321,12 +321,12 @@ final class BytecodeVersionAnalyzer {
         }
 
         if (manifest == null) {
-            warning("jar has no manifest");
+            warning("the jar has no manifest");
         } else {
             if (isMultiRelease(manifest)) {
-                info("jar is a multi release jar");
+                info("the jar is a multi release jar");
             } else {
-                info("jar is not a multi release jar");
+                info("the jar is not a multi release jar");
             }
 
             if (isSealed(manifest)) {
@@ -351,7 +351,7 @@ final class BytecodeVersionAnalyzer {
      * @return True if the given {@link Manifest} contains a Multi-Release: true definition.
      */
     private static final boolean isMultiRelease(final Manifest manifest) {
-        return "true".equals(manifest.getMainAttributes().getValue("Multi-Release"));
+        return Boolean.parseBoolean(manifest.getMainAttributes().getValue("Multi-Release"));
     }
 
     /**
@@ -362,7 +362,7 @@ final class BytecodeVersionAnalyzer {
      * @return True if the given {@link Manifest} contains a Sealed: true definition.
      */
     private static final boolean isSealed(final Manifest manifest) {
-        return "true".equals(manifest.getMainAttributes().getValue("Sealed"));
+        return Boolean.parseBoolean(manifest.getMainAttributes().getValue("Sealed"));
     }
 
     /**
@@ -553,8 +553,9 @@ final class BytecodeVersionAnalyzer {
 
             archivePath.append(arg);
 
-            if (i < argsLength - 1)
+            if (i < argsLength - 1) {
                 archivePath.append(" ");
+            }
         }
 
         result.archivePath = archivePath.toString().trim();
@@ -703,7 +704,7 @@ final class BytecodeVersionAnalyzer {
      * depending on the JVM that is running the code. If on a non Multi-Release constructed JarFile instance, it will
      * return the same entry.
      * <p>
-     * - Then call {@link JarEntryVersionConsumer#shouldSkip(JarEntry, JarEntry, JarFile)} to determine if an entry should
+     * - Then call {@link JarEntryVersionConsumer#shouldSkip(JarEntry, String, JarEntry, JarFile)} to determine if an entry should
      * be skipped. This for skipping the compiler generated synthetic classes.
      *
      * @param path The path of the JAR file.
@@ -781,7 +782,7 @@ final class BytecodeVersionAnalyzer {
      * for Multi-Release JAR support.
      * <p>
      * This method uses versionedStream method if available (Java 10+), skips META-INF/versions, refreshes
-     * entry (to get versioned one on Java 9+) and uses {@link JarEntryVersionConsumer#shouldSkip(JarEntry, JarEntry, JarFile)}.
+     * entry (to get versioned one on Java 9+) and uses {@link JarEntryVersionConsumer#shouldSkip(JarEntry, String, JarEntry, JarFile)}.
      * <p>
      * This means it has full Multi-Release support requirements described in {@link BytecodeVersionAnalyzer#newJarFile(String)},
      * if you construct the given {@link JarFile} with that method, of course.
@@ -1335,25 +1336,24 @@ final class BytecodeVersionAnalyzer {
          * Cancels the tasks and shutdowns the executor, too.
          * <p>
          * It can be started again, however. With a new executor and a new task of course.
+         * <p>
+         * This method will do nothing if the task is not started, so it can be called before/without
+         * starting, or can be called multiple times, without side effects.
          *
          * @return This {@link ProcessTracker} instance for ease of use.
          * @see ProcessTracker#start()
          */
         private final ProcessTracker stop() {
-            // Stop accepting new tasks
-            if (executor != null) {
-                executor.shutdown();
-            }
-
             // Cancel & nullify our task
             if (task != null) {
                 task.cancel(false);
                 task = null;
             }
 
-            // Shutdown the executor
+            // Shutdown % nullify our executor
             if (executor != null) {
-                executor.shutdownNow();
+                executor.shutdown();
+                executor = null;
             }
 
             return this;
@@ -1363,6 +1363,7 @@ final class BytecodeVersionAnalyzer {
          * Runs the notify hook.
          */
         private final void onInterval() {
+            // Note: Do not remove try, ScheduledExecutorService hides exception and cancels task if task fails in an exceptional way.
             try {
                 notify.accept(current != null ? current.getAsInt() : -1, total != null ? total.getAsInt() : -1);
             } catch (final Throwable tw) {
@@ -1621,13 +1622,13 @@ final class BytecodeVersionAnalyzer {
          *
          * @return Whatever the given {@link JarEntry} should be skipped or not.
          */
-        private static final boolean shouldSkip(final JarEntry entry, final JarEntry oldEntry, final JarFile jar) {
+        private static final boolean shouldSkip(final JarEntry entry, final String entryName, final JarEntry oldEntry, final JarFile jar) {
             // Skip the non-versioned compiler generated classes
 
             // JarEntry or ZipEntry does not implement a equals method, but they implement a hashCode method.
             // So we use it to check equality.
-            if (entry.getName().contains("$") && entry.hashCode() == oldEntry.hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
-                final String[] nestedClassSplit = entry.getName().split("\\$"); // Note: This will not impact performance, String#split has a fast path for single character arguments.
+            if (entryName.contains("$") && entry.hashCode() == oldEntry.hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
+                final String[] nestedClassSplit = entryName.split("\\$"); // Note: This will not impact performance, String#split has a fast path for single character arguments.
 
                 // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
                 if (isDigit(dotClassPatternMatcher.reset(nestedClassSplit[1]).replaceAll(""))) { // A synthetic accessor class, or an anonymous/lambda class.
@@ -1644,7 +1645,7 @@ final class BytecodeVersionAnalyzer {
 
                     if (baseClassJarEntry != null && baseClassJarEntry.hashCode() != baseClassEntry.hashCode()) { // Base class is found and versioned
                         if (debug) {
-                            info("skipping " + entry.getName() + " (non-versioned compiler generated class whose base class is found and versioned)");
+                            info("skipping " + entryName + " (non-versioned compiler generated class whose base class is found and versioned)");
                         }
 
                         return true;
@@ -1674,7 +1675,7 @@ final class BytecodeVersionAnalyzer {
                 if (name.endsWith(".class") && !name.contains("META-INF/versions")) {
                     final JarEntry newEntry = jar.getJarEntry(name);
 
-                    if (shouldSkip(newEntry, entry, jar)) {
+                    if (shouldSkip(newEntry, name, entry, jar)) {
                         return;
                     }
 
