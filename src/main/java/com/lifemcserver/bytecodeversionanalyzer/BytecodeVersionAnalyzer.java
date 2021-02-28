@@ -2051,7 +2051,7 @@ final class BytecodeVersionAnalyzer {
          * @param enumeration The {@link Enumeration}.
          */
         private EnumerationSpliterator(final Enumeration<? extends T> enumeration) {
-            super(Long.MAX_VALUE, Spliterator.ORDERED);
+            super(Long.MAX_VALUE, Spliterator.ORDERED & Spliterator.IMMUTABLE);
 
             this.enumeration = enumeration;
         }
