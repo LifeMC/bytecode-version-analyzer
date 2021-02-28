@@ -515,8 +515,14 @@ final class BytecodeVersionAnalyzer {
 
             if (argumentAction != null) {
                 if (argumentAction.hasNext()) {
-                    // Run the action after the value is encountered
-                    startOfArgumentValue = arg;
+                    // Run the action after the value is encountered if the value is given
+                    if (i != argsLength - 1) {
+                        startOfArgumentValue = arg;
+                    } else {
+                        // No value given, we are on the last argument
+                        // Invalid values will give a different error
+                        error("value missing for argument \"" + arg + "\"");
+                    }
                 } else {
                     // Run the action directly, has no value
                     argumentAction.run(arg, result);
