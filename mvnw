@@ -128,7 +128,7 @@ if [ -z "$JAVA_HOME" ]; then
     if [ -n "$javaExecutable" ] && ! [ "$(expr \"$javaExecutable\" : '\([^ ]*\)')" = "no" ]; then
         # readlink(1) is not available as standard on Solaris 10.
         readLink=$(which readlink)
-        if [ ! $(expr "$readLink" : '\([^ ]*\)') = "no" ]; then
+        if [ ! "$(expr "$readLink" : '\([^ ]*\)')" = "no" ]; then
             if $darwin; then
                 javaHome="$(dirname \"$javaExecutable\")"
                 javaExecutable="$(cd \"$javaHome\" && pwd -P)/javac"
@@ -165,8 +165,6 @@ fi
 if [ -z "$JAVA_HOME" ]; then
     echo "Warning: JAVA_HOME environment variable is not set."
 fi
-
-CLASSWORLDS_LAUNCHER=org.codehaus.plexus.classworlds.launcher.Launcher
 
 # traverses directory structure from process work directory to filesystem root
 # first directory with .mvn subdirectory is considered project base directory
@@ -225,7 +223,7 @@ else
     else
         jarUrl="https://repo.maven.apache.org/maven2/io/takari/maven-wrapper/0.5.5/maven-wrapper-0.5.5.jar"
     fi
-    while IFS="=" read key value; do
+    while IFS="=" read -r key value; do
         case "$key" in wrapperUrl)
             jarUrl="$value"
             break
@@ -310,7 +308,7 @@ fi
 
 # Provide a "standardized" way to retrieve the CLI args that will
 # work with both Windows and non-Windows executions.
-MAVEN_CMD_LINE_ARGS="$MAVEN_CONFIG $@"
+MAVEN_CMD_LINE_ARGS="$MAVEN_CONFIG $*"
 export MAVEN_CMD_LINE_ARGS
 
 WRAPPER_LAUNCHER=org.apache.maven.wrapper.MavenWrapperMain
