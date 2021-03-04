@@ -1,3 +1,5 @@
+package org.maven.wrapper;
+
 import java.util.Properties;
 
 final class MavenWrapperDownloader {
