@@ -39,7 +39,7 @@ public final class Logging {
      * Prints an empty debug message.
      */
     public static final void debug() {
-        info("");
+        debug(() -> "");
     }
 
     /**

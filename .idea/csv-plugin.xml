@@ -24,6 +24,20 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\extensions\threading\NamedThreadFactory.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\logging\Logging.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\logging\Verbosity.java">
           <value>
             <Attribute>
