@@ -11,11 +11,11 @@ public final class StopCodeExecution extends RuntimeException {
     /**
      * A singleton to use instead of creating new objects every time.
      */
-    public static final StopCodeExecution INSTANCE = new StopCodeExecution();
+    public static final transient StopCodeExecution INSTANCE = new StopCodeExecution();
     /**
      * The serial version UUID for this exception, for supporting serialization.
      */
-    private static final long serialVersionUID = -6852778657371379400L;
+    private static final transient long serialVersionUID = 1L;
 
     /**
      * A private constructor to promote usage of the singleton {@link StopCodeExecution#INSTANCE}.

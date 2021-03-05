@@ -459,7 +459,7 @@ public final class BytecodeVersionAnalyzer {
             failVerbosity = Verbosity.fromString(true, arg, failVerbosity);
 
             Verbosity.clearAllHooks();
-            failVerbosity.onPrint(message -> failed = true);
+            failVerbosity.onPrintRecursive(message -> failed = true);
         });
 
         addArgument("help", (arg, result) -> {

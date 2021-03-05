@@ -24,6 +24,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\logging\Verbosity.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\utils\WrappedOutputStream.java">
           <value>
             <Attribute>

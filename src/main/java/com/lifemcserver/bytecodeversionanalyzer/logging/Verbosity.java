@@ -78,6 +78,14 @@ public enum Verbosity {
         hooks.add(hook);
     }
 
+    public final void onPrintRecursive(final Consumer<String> hook) {
+        for (final Verbosity verbosity : values()) {
+            if (canPrint(verbosity)) {
+                verbosity.hooks.add(hook);
+            }
+        }
+    }
+
     public void println(final String str) {
         hooks.forEach(hook -> hook.accept(str));
     }

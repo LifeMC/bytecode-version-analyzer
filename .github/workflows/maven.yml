@@ -70,6 +70,14 @@ jobs:
                 run: |
                     ./mvnw clean verify --threads 1C --batch-mode --errors
 
+            -   name: Test CLI
+                run: |
+                    java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom --help
+                    java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/classes/com/lifemcserver/bytecodeversionanalyzer/BytecodeVersionAnalyzer.class
+                    java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/bytecode-version-analyzer.jar
+                    java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/original-bytecode-version-analyzer.jar
+                    java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/classes/com/lifemcserver/bytecodeversionanalyzer/BytecodeVersionAnalyzer.class target/original-bytecode-version-analyzer.jar
+
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v2.2.2
                 with:
