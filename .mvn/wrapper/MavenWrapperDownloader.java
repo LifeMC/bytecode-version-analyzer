@@ -1,4 +1,4 @@
-package org.maven.wrapper;
+package org.apache.maven.wrapper;
 
 import java.util.Properties;
 

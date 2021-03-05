@@ -258,6 +258,11 @@
 
                     <!-- Bugged option, false means incremental compilation is enabled -->
                     <useIncrementalCompilation>false</useIncrementalCompilation>
+
+                    <compileSourceRoots>
+                        <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+                        <compileSourceRoot>${project.basedir}/src/main/java8</compileSourceRoot>
+                    </compileSourceRoots>
                 </configuration>
                 <executions>
                     <execution>
@@ -270,7 +275,9 @@
                             <release>11</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+
                                 <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java10</compileSourceRoot>
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
@@ -285,7 +292,9 @@
                             <release>15</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+
                                 <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                <compileSourceRoot>${project.basedir}/src/main/java10</compileSourceRoot>
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
