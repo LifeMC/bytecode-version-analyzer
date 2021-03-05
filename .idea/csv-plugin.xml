@@ -10,6 +10,34 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\JarEntryVersionConsumer.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\arguments\ArgumentParseResult.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\utils\WrappedOutputStream.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\src\test\java\com\lifemcserver\bytecodeversionanalyzer\BytecodeVersionAnalyzerIT.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>

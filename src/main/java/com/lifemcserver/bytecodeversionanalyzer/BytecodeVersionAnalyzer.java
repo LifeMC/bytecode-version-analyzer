@@ -1,13 +1,24 @@
 package com.lifemcserver.bytecodeversionanalyzer;
 
+import com.lifemcserver.bytecodeversionanalyzer.arguments.ArgumentAction;
+import com.lifemcserver.bytecodeversionanalyzer.arguments.ArgumentParseResult;
+import com.lifemcserver.bytecodeversionanalyzer.crosscompile.MultiReleaseJarFile;
+import com.lifemcserver.bytecodeversionanalyzer.crosscompile.VersionedJarFileStream;
+import com.lifemcserver.bytecodeversionanalyzer.extensions.StopCodeExecution;
+import com.lifemcserver.bytecodeversionanalyzer.extensions.StopCodeExecutionUncaughtExceptionHandler;
+import com.lifemcserver.bytecodeversionanalyzer.extensions.lazies.Lazy;
+import com.lifemcserver.bytecodeversionanalyzer.extensions.lazies.MutableLazy;
+import com.lifemcserver.bytecodeversionanalyzer.extensions.timing.Timing;
+import com.lifemcserver.bytecodeversionanalyzer.logging.Logging;
+import com.lifemcserver.bytecodeversionanalyzer.logging.Verbosity;
+import com.lifemcserver.bytecodeversionanalyzer.utils.ProgressTracker;
+import com.lifemcserver.bytecodeversionanalyzer.utils.ProgressTrackerBuilder;
+import com.lifemcserver.bytecodeversionanalyzer.utils.StreamUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
 import java.io.*;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.math.RoundingMode;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -17,15 +28,15 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Year;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.function.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -38,114 +49,96 @@ import java.util.zip.ZipFile;
  * It can display a metric like % classes use Java 8 or such,
  * or warn legacy/bleeding edge ones, too.
  */
-final class BytecodeVersionAnalyzer {
-    /**
-     * The prefix added to warning messages.
-     */
-    private static final String WARNING_PREFIX = "warning: ";
-    /**
-     * The prefix added to error messages.
-     */
-    private static final String ERROR_PREFIX = "error: ";
-
-    // Required for getting version at runtime
-    /**
-     * The Maven groupId of the project.
-     */
-    private static final String GROUP_ID = "com.lifemcserver";
-    /**
-     * The Maven artifactId of the project.
-     */
-    private static final String ARTIFACT_ID = "bytecode-version-analyzer";
-
-    /**
-     * The decimal format for two numbers at most after the first dot in non-integer/long numbers.
-     */
-    private static final DecimalFormat twoNumbersAfterDotFormat = getTwoNumbersAfterDotFormat();
-    /**
-     * The result of JarFile#runtimeVersion method when on Java 9 or above. Null otherwise.
-     */
-    private static final Object runtimeVersion;
-    /**
-     * The constructor of JarFile to enable Multi-Release JAR support when on Java 9 or above. Null otherwise.
-     */
-    private static final MethodHandle jarFileMultiReleaseConstructor;
-    /**
-     * A preview class files minor version is always this value.
-     */
-    private static final int PREVIEW_CLASS_FILE_MINOR_VERSION = 65535;
-    /**
-     * Result of this value can be used to get a class file version from bits.
-     * (example: {@code HEXADECIMAL_ALL_BITS_ONE & 0x34} will give 52, which is Java 8)
-     * <p>
-     * In fact, this the same number as {@link BytecodeVersionAnalyzer#PREVIEW_CLASS_FILE_MINOR_VERSION}, but we represent it as a
-     * hexadecimal value for clarification.
-     */
-    private static final int HEXADECIMAL_ALL_BITS_ONE = 0xFFFF;
-    /**
-     * Identifier for Java class files. Classes do not contain this value are invalid.
-     */
-    private static final int JAVA_CLASS_FILE_IDENTIFIER = 0xCAFEBABE;
-    /**
-     * Java class file versions start from this value. Class file versions below this value
-     * should not be expected and historically, they are probably test versions or from the Oak language. (Java's root)
-     * <p>
-     * For transforming class file versions into Java versions, class file version - this constant's value can
-     * be assumed to be correct. For vice versa, java version + this constant value can be assumed to be correct.
-     */
-    private static final int JAVA_CLASS_FILE_VERSION_START = 44;
-    /**
-     * The magic number used for hash code calculations.
-     */
-    private static final int HASH_CODE_MAGIC_NUMBER = 31;
-    /**
-     * The one hundred number with precision as a double.
-     */
-    private static final double ONE_HUNDRED = 100.0D;
+public final class BytecodeVersionAnalyzer {
     /**
      * Uncaught exception handler for the program.
      */
-    private static final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = new BytecodeVersionAnalyzerUncaughtExceptionHandler();
+    public static final Lazy<Thread.UncaughtExceptionHandler> uncaughtExceptionHandler = new Lazy<>(StopCodeExecutionUncaughtExceptionHandler::new);
     /**
-     * Matches the literal pattern of text ".class"
+     * The decimal format for two numbers at most after the first dot in non-integer/long numbers.
      */
-    private static final Matcher dotClassPatternMatcher = Pattern.compile(".class", Pattern.LITERAL).matcher("");
+    private static final Lazy<DecimalFormat> twoNumbersAfterDotFormat = new Lazy<>(BytecodeVersionAnalyzer::getTwoNumbersAfterDotFormat);
     /**
      * Map that holds and caches arguments for direct key value access.
      */
-    private static final Map<String, ArgumentAction> argumentMap = new HashMap<>();
+    private static final Lazy<Map<String, ArgumentAction>> argumentMap = new Lazy<>(HashMap::new);
+    /**
+     * Determines how many threads to use if {@link BytecodeVersionAnalyzer#parallel} is true.
+     */
+    private static final MutableLazy<Integer> threads = new MutableLazy<>(() -> Runtime.getRuntime().availableProcessors());
+    /**
+     * Determines if classes should be processed on parallel or not.
+     */
+    private static boolean parallel = true;
+    /**
+     * Determines if {@link InputStream InputStreams} should be buffered or not.
+     */
+    private static boolean buffered = true;
+    /**
+     * The properties file of the project.
+     */
+    private static Properties projectProperties;
     /**
      * The parsed model object for pom file, for getting the version and other information.
      */
     private static Model model;
     /**
+     * The Maven groupId of the project.
+     */
+    private static final Lazy<String> groupId = new Lazy<>(() -> getProjectProperties().getProperty("groupId"));
+    /**
+     * The Maven artifactId of the project.
+     */
+    private static final Lazy<String> artifactId = new Lazy<>(() -> getProjectProperties().getProperty("artifactId"));
+    /**
      * Indicates that POM is loaded or not. Does not indicate a successful load, though.
      */
     private static boolean loadedPom;
     /**
-     * Determines if debug messages should be printed.
+     * Determines if the execution time should be printed or not.
+     * Note that execution time will still be timed, just not printed if false.
+     * <p>
+     * This because argument parsing is also affected by the timing.
      */
-    private static boolean debug;
+    private static boolean timed = true;
     /**
-     * The versionedStream method of JarFile when on Java 10 or above. Null otherwise.
+     * Determines if the entry processing should be tracked.
+     * <p>
+     * This will keep you updated with the processed entry count if you are processing
+     * a big JAR.
+     * <p>
+     * It will print the processed entry count every 500ms, preventing unresponsive
+     * look of program when doing processing.
      */
-    private static final MethodHandle versionedStream = findVersionedStream();
+    private static boolean track = true;
+    /**
+     * Determines if {@link ForkJoinPool} constructor should be invoked with async parameter true.
+     */
+    private static boolean async = true;
+    /**
+     * Determines if we should check Java class files for {@link Constants#JAVA_CLASS_FILE_IDENTIFIER} or not.
+     */
+    private static boolean verify = true;
     /**
      * Keeps track of the total spawned thread count. (not currently live threads)
      */
     private static long threadCount;
-
-    static {
-        // In-block to guarantee order of execution. Tools such as IntelliJ can re-arrange field order.
-        runtimeVersion = findRuntimeVersion();
-        jarFileMultiReleaseConstructor = findJarFileMultiReleaseConstructor();
-    }
+    /**
+     * The verbosity which fail the execution (returning an exit code of -1) if messages on that verbosity
+     * or higher are printed.
+     */
+    private static Verbosity failVerbosity = Verbosity.ERROR;
+    /**
+     * The boolean that holds the failed state. Will become true if messages on {@link BytecodeVersionAnalyzer#failVerbosity}
+     * or higher are printed during execution.
+     */
+    private static boolean failed;
 
     /**
      * Private constructor to avoid creation of new instances.
      */
     private BytecodeVersionAnalyzer() {
-        throw new UnsupportedOperationException("Static only class");
+        throw new UnsupportedOperationException(Constants.STATIC_ONLY_CLASS);
     }
 
     /**
@@ -166,8 +159,8 @@ final class BytecodeVersionAnalyzer {
      * @param get             The operation to just get without incrementing the long value.
      * @return An unique thread suffix in the format " #number".
      */
-    private static final String getThreadSuffix(final LongSupplier incrementAndGet,
-                                                final LongSupplier get) {
+    public static final String getThreadSuffix(final LongSupplier incrementAndGet,
+                                               final LongSupplier get) {
         return incrementAndGet.getAsLong() > 1L ? " #" + get.getAsLong() : "";
     }
 
@@ -187,7 +180,7 @@ final class BytecodeVersionAnalyzer {
      */
     private static final void setupThread(final Thread thread) {
         thread.setName(getThreadName());
-        thread.setUncaughtExceptionHandler(uncaughtExceptionHandler);
+        thread.setUncaughtExceptionHandler(uncaughtExceptionHandler.get());
     }
 
     /**
@@ -196,7 +189,7 @@ final class BytecodeVersionAnalyzer {
      */
     private static final void setupThreads() {
         setupThread(Thread.currentThread());
-        Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
+        Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler.get());
     }
 
     /**
@@ -213,7 +206,17 @@ final class BytecodeVersionAnalyzer {
         runCli(args);
 
         timing.stop();
-        info("Took " + timing);
+
+        if (timed) {
+            Logging.info("Took " + timing);
+        }
+
+        if (failed) {
+            // This will stop the code execution and VM will automatically set
+            // the exit code to a non-zero code. We are not using System#exit since that will exit entire VM.
+            // (it will shutdown the JUnit engine when run from tests, for an example.)
+            throw StopCodeExecution.INSTANCE;
+        }
     }
 
     /**
@@ -242,9 +245,9 @@ final class BytecodeVersionAnalyzer {
             loadPom();
 
             if (model == null) {
-                warning();
-                warning("couldn't load POM file; some things will not display");
-                warning();
+                Logging.warning();
+                Logging.warning("couldn't load POM file; some things will not display");
+                Logging.warning();
             }
         }
 
@@ -264,26 +267,26 @@ final class BytecodeVersionAnalyzer {
         final ArgumentParseResult result = parseArguments(args, args.length, new StringBuilder());
 
         // Initialize parse result variables
-        final String path = result.archivePath;
-        final boolean printedAtLeastOneVersion = result.printedAtLeastOneVersion;
+        final String path = result.getArchivePath();
+        final boolean printedAtLeastOneVersion = result.getHasPrintedAtLeastOneVersion();
 
         // Check file path
         final File archiveFile = new File(path);
 
         if (!archiveFile.exists()) { // Does not exist
             if (!printedAtLeastOneVersion) {
-                error("archive file does not exist: " + path + " (tip: use quotes if the path contains space)");
+                Logging.error("archive file does not exist: " + path + " (tip: use quotes if the path contains space)");
             }
             return;
         }
 
         if (!archiveFile.isFile()) { // Is a directory
-            error("can't process a directory: " + path);
+            Logging.error("can't process a directory: " + path);
             return;
         }
 
         if (!archiveFile.canRead()) { // Can't read
-            error("can't read the file: " + path);
+            Logging.error("can't read the file: " + path);
         }
 
         final Map<String, ClassFileVersion> classes;
@@ -296,7 +299,7 @@ final class BytecodeVersionAnalyzer {
             throw handleError(e);
         }
 
-        analyze(classes, new HashMap<>(), result.printIfBelow, result.printIfAbove, result.filter);
+        analyze(classes, new HashMap<>(), result.getPrintIfBelow(), result.getPrintIfAbove(), result.getFilter());
     }
 
     /**
@@ -313,24 +316,24 @@ final class BytecodeVersionAnalyzer {
         }
 
         if (manifest == null) {
-            warning("the jar has no manifest");
+            Logging.warning("the jar has no manifest");
         } else {
             if (isMultiRelease(manifest)) {
-                info("the jar is a multi release jar");
+                Logging.info("the jar is a multi release jar");
             } else {
-                info("the jar is not a multi release jar");
+                Logging.info("the jar is not a multi release jar");
             }
 
             if (isSealed(manifest)) {
-                info("the jar is sealed globally");
+                Logging.info("the jar is sealed globally");
             } else {
-                info("the jar is not sealed globally");
+                Logging.info("the jar is not sealed globally");
             }
 
             if (isSigned(manifest)) {
-                info("the jar is signed from manifest");
+                Logging.info("the jar is signed from manifest");
             } else {
-                info("the jar is not signed from manifest");
+                Logging.info("the jar is not signed from manifest");
             }
         }
     }
@@ -397,15 +400,15 @@ final class BytecodeVersionAnalyzer {
             counter.put(version, amount + 1);
 
             if (version.isPreview()) {
-                warning("class " + clazz + " uses preview language features (" + version + ", Java " + version.toJavaVersion() + " with preview language features)");
+                Logging.warning("class " + clazz + " uses preview language features (" + version + ", Java " + version.toJavaVersion() + " with preview language features)");
             }
 
             if (printIfBelow != null && printIfBelow.isHigherThan(version) && (filter == null || clazz.contains(filter))) {
-                warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is below specified (" + printIfBelow + ", Java " + printIfBelow.toJavaVersion() + ")");
+                Logging.warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is below specified (" + printIfBelow + ", Java " + printIfBelow.toJavaVersion() + ")");
             }
 
             if (printIfAbove != null && version.isHigherThan(printIfAbove) && (filter == null || clazz.contains(filter))) {
-                warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is above specified (" + printIfAbove + ", Java " + printIfAbove.toJavaVersion() + ")");
+                Logging.warning("class " + clazz + " uses version " + version.toStringAddJavaVersionToo() + " which is above specified (" + printIfAbove + ", Java " + printIfAbove.toJavaVersion() + ")");
             }
         }
 
@@ -417,7 +420,7 @@ final class BytecodeVersionAnalyzer {
 
             final double percent = percentOf(usages, total);
 
-            info(usages + " out of total " + total + " classes (%" + formatDouble(percent) + ") use " + version.toStringAddJavaVersionToo() + " class file version");
+            Logging.info(usages + " out of total " + total + " classes (%" + formatDouble(percent) + ") use " + version.toStringAddJavaVersionToo() + " class file version");
         }
     }
 
@@ -425,20 +428,105 @@ final class BytecodeVersionAnalyzer {
      * Loads the CLI arguments.
      */
     private static final void loadArguments() {
-        addArgument("print-if-below", true, (arg, result) -> result.printIfBelow = parseClassFileVersionFromUserInput(arg));
-        addArgument("print-if-above", true, (arg, result) -> result.printIfAbove = parseClassFileVersionFromUserInput(arg));
+        argumentMap.get().clear();
 
-        addArgument("filter", true, (arg, result) -> result.filter = arg);
+        addArgument("print-if-below", true, (arg, result) -> result.setPrintIfBelow(parseClassFileVersionFromUserInput(arg)));
+        addArgument("print-if-above", true, (arg, result) -> result.setPrintIfAbove(parseClassFileVersionFromUserInput(arg)));
+
+        addArgument("filter", true, (arg, result) -> result.setFilter(arg));
 
         addArgument("loadPom", BytecodeVersionAnalyzer::getModel);
 
-        // Reserved argument
-        addArgument("threads", true, () -> warning("reserved argument usage detected; this option currently does not have any effect but it will in future."));
+        addArgument("parallel", true, arg -> parallel = parseBooleanFromUserInput(true, arg, parallel));
 
         addArgument("debug", () -> {
-            debug = true;
-            info("note: debug mode is enabled");
+            Logging.setVerbosity(Verbosity.DEBUG);
+            Logging.info("note: debug mode is enabled");
         });
+
+        addArgument("timing", true, arg -> timed = parseBooleanFromUserInput(true, arg, timed));
+        addArgument("track", true, arg -> track = parseBooleanFromUserInput(true, arg, track));
+
+        addArgument("async", true, arg -> async = parseBooleanFromUserInput(true, arg, async));
+        //noinspection MagicCharacter
+        addArgument("threads", true, arg -> threads.set(parseIntegerFromUserInput(arg.charAt(arg.length() - 1) != 'C', arg, () -> arg.charAt(arg.length() - 1) == 'C' ? (int) (parseDoubleFromUserInput(true, arg.substring(0, arg.length() - 1), () -> 1) * threads.get()) : threads.get())));
+
+        addArgument("buffered", true, arg -> buffered = parseBooleanFromUserInput(true, arg, buffered));
+        addArgument("verify", true, arg -> verify = parseBooleanFromUserInput(true, arg, verify));
+
+        addArgument("verbosity", true, arg -> Logging.setVerbosity(Verbosity.fromString(true, arg, Logging.getVerbosity())));
+        addArgument("fail-verbosity", true, arg -> {
+            failVerbosity = Verbosity.fromString(true, arg, failVerbosity);
+
+            Verbosity.clearAllHooks();
+            failVerbosity.onPrint(message -> failed = true);
+        });
+
+        addArgument("help", (arg, result) -> {
+            result.setHasPrintedAtLeastOneVersion(true);
+            displayHelp(true);
+        });
+    }
+
+    /**
+     * Parses a boolean from user input, optionally printing errors and returning a default value.
+     *
+     * @param printErrors  Pass true to make method print an error before returning the default value if the input is invalid.
+     * @param input        The input to try to parse as a boolean.
+     * @param defaultValue The default value to return when the input is invalid.
+     * @return The parsed boolean from input, or default value if the input is invalid.
+     */
+    private static final boolean parseBooleanFromUserInput(final boolean printErrors, final String input, final boolean defaultValue) {
+        final boolean cond = Boolean.parseBoolean(input);
+        final boolean valid = cond || "false".equals(input);
+
+        if (valid) {
+            return cond;
+        }
+
+        if (printErrors) {
+            Logging.error("invalid boolean value, expected true or false, got \"" + input + "\"");
+        }
+
+        return defaultValue;
+    }
+
+    /**
+     * Parses a integer from user input, optionally printing errors and returning a default value.
+     *
+     * @param printErrors  Pass true to make method print an error before returning the default value if the input is invalid.
+     * @param input        The input to try to parse as a integer.
+     * @param defaultValue The default value to return when the input is invalid.
+     * @return The parsed integer from input, or default value if the input is invalid.
+     */
+    private static final int parseIntegerFromUserInput(final boolean printErrors, final String input, final IntSupplier defaultValue) {
+        try {
+            return Integer.parseInt(input);
+        } catch (final NumberFormatException e) {
+            if (printErrors) {
+                Logging.error("invalid integer value (" + input + "): " + e.getMessage());
+            }
+            return defaultValue.getAsInt();
+        }
+    }
+
+    /**
+     * Parses a double from user input, optionally printing errors and returning a default value.
+     *
+     * @param printErrors  Pass true to make method print an error before returning the default value if the input is invalid.
+     * @param input        The input to try to parse as a double.
+     * @param defaultValue The default value to return when the input is invalid.
+     * @return The parsed double from input, or default value if the input is invalid.
+     */
+    private static final double parseDoubleFromUserInput(final boolean printErrors, final String input, final DoubleSupplier defaultValue) {
+        try {
+            return Double.parseDouble(input);
+        } catch (final NumberFormatException e) {
+            if (printErrors) {
+                Logging.error("invalid double value (" + input + "): " + e.getMessage());
+            }
+            return defaultValue.getAsDouble();
+        }
     }
 
     /**
@@ -469,6 +557,16 @@ final class BytecodeVersionAnalyzer {
      * @param name   The argument name. It will be usable prefixed with -- in CLI.
      * @param action The action to run when the parameter is used.
      */
+    public static final void addArgument(final String name, final Consumer<String> action) {
+        addArgument(name, (arg, result) -> action.accept(arg));
+    }
+
+    /**
+     * Adds an argument.
+     *
+     * @param name   The argument name. It will be usable prefixed with -- in CLI.
+     * @param action The action to run when the parameter is used.
+     */
     private static final void addArgument(final String name, final BiConsumer<String, ArgumentParseResult> action) {
         addArgument(name, false, action);
     }
@@ -481,8 +579,20 @@ final class BytecodeVersionAnalyzer {
      *                 instead of the first iteration where only the argument is encountered and no value is known.
      * @param action   The action to run when the parameter, and, if hasValue is true, the value is used.
      */
+    private static final void addArgument(final String name, final boolean hasValue, final Consumer<String> action) {
+        addArgument(name, hasValue, (arg, result) -> action.accept(arg));
+    }
+
+    /**
+     * Adds an argument.
+     *
+     * @param name     The argument name. It will be usable prefixed with -- in CLI.
+     * @param hasValue Enter true to delay execution of the action to next iteration (when the value for argument is encountered),
+     *                 instead of the first iteration where only the argument is encountered and no value is known.
+     * @param action   The action to run when the parameter, and, if hasValue is true, the value is used.
+     */
     private static final void addArgument(final String name, final boolean hasValue, final BiConsumer<String, ArgumentParseResult> action) {
-        argumentMap.put("--" + name, hasValue ? new ArgumentAction(new ArgumentAction(action)) : new ArgumentAction(action));
+        argumentMap.get().put("--" + name, hasValue ? new ArgumentAction(new ArgumentAction(action)) : new ArgumentAction(action));
     }
 
     /**
@@ -494,7 +604,6 @@ final class BytecodeVersionAnalyzer {
      * @return The parse result of the given arguments.
      */
     private static final ArgumentParseResult parseArguments(final String[] args, final int argsLength, final StringBuilder archivePath) {
-        boolean printedAtLeastOneVersion = false;
         String startOfArgumentValue = null;
 
         final ArgumentParseResult result = new ArgumentParseResult();
@@ -502,62 +611,50 @@ final class BytecodeVersionAnalyzer {
         for (int i = 0; i < argsLength; i++) {
             final String arg = args[i];
 
-            if (arg.endsWith(".class")) {
-                printedAtLeastOneVersion = true;
+            if (!arg.endsWith(".class")) {
+                final ArgumentAction argumentAction = argumentMap.get().get(arg);
+
+                if (argumentAction != null) {
+                    if (!argumentAction.hasNext()) {
+                        // Run the action directly, has no value
+                        argumentAction.run(arg, result);
+                    } else {
+                        // Run the action after the value is encountered if the value is given
+                        if (i != argsLength - 1) {
+                            startOfArgumentValue = arg;
+                        } else {
+                            // No value given, we are on the last argument
+                            // Invalid values will give a different error
+                            Logging.error("value missing for argument \"" + arg + "\"");
+                        }
+                    }
+                    continue;
+                } else if (startOfArgumentValue == null && arg.startsWith("--") && !arg.contains(".")) {
+                    Logging.error("unrecognized argument: " + arg);
+                }
+
+                if (startOfArgumentValue != null) {
+                    // argumentAction will be null here, can't use that.
+                    final ArgumentAction previous = argumentMap.get().get(startOfArgumentValue);
+
+                    startOfArgumentValue = null;
+                    previous./*getNext().*/run(arg, result);
+                } else if (!arg.startsWith("--")) { // probably an unrecognized argument
+                    archivePath.append(arg);
+
+                    if (i < argsLength - 1) {
+                        archivePath.append(" ");
+                    }
+                }
+            } else {
+                result.setHasPrintedAtLeastOneVersion(true);
 
                 // Display version of a single class file
                 printSingleClassFile(arg);
-
-                continue;
-            }
-
-            final ArgumentAction argumentAction = argumentMap.get(arg);
-
-            if (argumentAction != null) {
-                if (argumentAction.hasNext()) {
-                    // Run the action after the value is encountered if the value is given
-                    if (i != argsLength - 1) {
-                        startOfArgumentValue = arg;
-                    } else {
-                        // No value given, we are on the last argument
-                        // Invalid values will give a different error
-                        error("value missing for argument \"" + arg + "\"");
-                    }
-                } else {
-                    // Run the action directly, has no value
-                    argumentAction.run(arg, result);
-                }
-                continue;
-            } else {
-                if (startOfArgumentValue == null) {
-                    if (arg.startsWith("--") && !arg.contains(".")) {
-                        error("unrecognized argument: " + arg + ", skipping...");
-                        continue;
-                    }
-                } else if (debug) {
-                    info("will parse value of " + startOfArgumentValue + " argument in next iteration");
-                }
-            }
-
-            if (startOfArgumentValue != null) {
-                // argumentAction will be null here, can't use that.
-                final ArgumentAction previous = argumentMap.get(startOfArgumentValue);
-
-                startOfArgumentValue = null;
-                previous./*getNext().*/run(arg, result);
-
-                continue;
-            }
-
-            archivePath.append(arg);
-
-            if (i < argsLength - 1) {
-                archivePath.append(" ");
             }
         }
 
-        result.archivePath = archivePath.toString().trim();
-        result.printedAtLeastOneVersion = printedAtLeastOneVersion;
+        result.setArchivePath(archivePath.toString().trim());
 
         return result;
     }
@@ -572,7 +669,7 @@ final class BytecodeVersionAnalyzer {
         try {
             return ClassFileVersion.fromString(input);
         } catch (final IllegalArgumentException e) {
-            error("invalid class file version: " + e.getMessage());
+            Logging.error("invalid class file version: " + e.getMessage());
         }
         return null;
     }
@@ -586,17 +683,17 @@ final class BytecodeVersionAnalyzer {
         final File file = new File(arg);
 
         if (!file.exists()) {
-            error("file does not exist: " + arg);
+            Logging.error("file does not exist: " + arg);
             return;
         }
 
         if (!file.isFile()) {
-            error("can't process a directory: " + arg);
+            Logging.error("can't process a directory: " + arg);
             return;
         }
 
         if (!file.canRead()) {
-            error("can't read the file: " + arg);
+            Logging.error("can't read the file: " + arg);
             return;
         }
 
@@ -607,83 +704,11 @@ final class BytecodeVersionAnalyzer {
         } catch (final FileNotFoundException e) {
             throw handleError(e); // We checked that the file exists.. How?
         } catch (final IOException e) {
-            error("error when processing class: " + e.getMessage());
+            Logging.error("error when processing class: " + e.getMessage());
             return;
         }
 
-        info(version.toStringAddJavaVersionToo());
-    }
-
-    /**
-     * Finds the JarFile#versionedStream method when on Java 10 or above.
-     * <p>
-     * Returns null if not available (i.e. Java 8 or below)
-     *
-     * @return The versionedStream {@link MethodHandle}.
-     */
-    private static final MethodHandle findVersionedStream() {
-        try {
-            // does not exist on JDK 8 obviously, we must suppress it.
-            //noinspection JavaLangInvokeHandleSignature
-            return MethodHandles.publicLookup().findVirtual(JarFile.class, "versionedStream", MethodType.methodType(Stream.class));
-        } catch (final NoSuchMethodException e) {
-            if (debug) {
-                warning("JarFile#versionedStream is not available (Java 10+)");
-            }
-            return null;
-        } catch (final IllegalAccessException e) {
-            throw handleError(e);
-        }
-    }
-
-    /**
-     * Finds the result of execution for JarFile#runtimeVersion method when on Java 9 or above.
-     * <p>
-     * Returns null if not available (i.e. Java 8 or below)
-     *
-     * @return The result of execution for JarFile#runtimeVersion method.
-     * It will be null if on Java 8 or below or Runtime#Version when on Java 9 or above.
-     */
-    private static final Object findRuntimeVersion() {
-        //noinspection OverlyBroadCatchBlock
-        try {
-            // does not exist on JDK 8 obviously, we must suppress it.
-            //noinspection JavaLangInvokeHandleSignature
-            final MethodHandle runtimeVersionMethod = MethodHandles.publicLookup().findStatic(JarFile.class, "runtimeVersion", MethodType.methodType(Class.forName("java.lang.Runtime$Version")));
-            return runtimeVersionMethod.invoke();
-        } catch (final ClassNotFoundException e) {
-            if (debug) {
-                warning("JarFile#runtimeVersion is not available (Java 9+)");
-            }
-            return null;
-        } catch (final Throwable e) {
-            throw handleError(e);
-        }
-    }
-
-    /**
-     * Finds the constructor of JarFile with Multi-Release support when on Java 9 or above.
-     * <p>
-     * Returns null if not available (i.e. Java 8 or below)
-     * <p>
-     * Note: In order to make this work, runtimeVersion variable should not be null.
-     *
-     * @return The JarFile constructor with Multi-Release support.
-     */
-    private static final MethodHandle findJarFileMultiReleaseConstructor() {
-        if (runtimeVersion == null) {
-            if (debug) {
-                warning("JarFile constructor with Multi-Release support is not available because a dependency of it is not available (Java 9+, depends on JarFile#runtimeVersion)");
-            }
-            return null;
-        }
-        try {
-            // does not exist on JDK 8 obviously, we must suppress it.
-            //noinspection JavaLangInvokeHandleSignature
-            return MethodHandles.publicLookup().findConstructor(JarFile.class, MethodType.methodType(void.class, File.class, boolean.class, int.class, runtimeVersion.getClass()));
-        } catch (final NoSuchMethodException | IllegalAccessException e) {
-            throw handleError(e);
-        }
+        Logging.info(version.toStringAddJavaVersionToo());
     }
 
     /**
@@ -702,24 +727,14 @@ final class BytecodeVersionAnalyzer {
      * depending on the JVM that is running the code. If on a non Multi-Release constructed JarFile instance, it will
      * return the same entry.
      * <p>
-     * - Then call {@link JarEntryVersionConsumer#shouldSkip(JarEntry, String, JarEntry, JarFile)} to determine if an entry should
+     * - Then call JarEntryVersionConsumer#shouldSkip to determine if an entry should
      * be skipped. This for skipping the compiler generated synthetic classes.
      *
      * @param path The path of the JAR file.
      * @return A new JAR file object with Multi-Release JAR support.
      */
     private static final JarFile newJarFile(final String path) throws IOException {
-        if (jarFileMultiReleaseConstructor != null) {
-            try {
-                return (JarFile) jarFileMultiReleaseConstructor.invoke(new File(path), true, ZipFile.OPEN_READ, runtimeVersion);
-            } catch (final Throwable tw) {
-                throw handleError(tw);
-            }
-        }
-        if (debug) {
-            warning("using non-versioned JarFile constructor");
-        }
-        return new JarFile(path);
+        return MultiReleaseJarFile.newJarFile(path);
     }
 
     /**
@@ -729,7 +744,7 @@ final class BytecodeVersionAnalyzer {
      * @return The non-verbose, human-friendly read-able double.
      */
     private static final String formatDouble(final double number) {
-        return twoNumbersAfterDotFormat.format(number);
+        return twoNumbersAfterDotFormat.get().format(number);
     }
 
     /**
@@ -759,18 +774,7 @@ final class BytecodeVersionAnalyzer {
      * @return The percentage of the current to the total value.
      */
     private static final double percentOf(final double current, final double total) {
-        return (current / total) * ONE_HUNDRED;
-    }
-
-    /**
-     * Converts an {@link Enumeration} to a {@link Stream}.
-     *
-     * @param enumeration The enumeration to convert into {@link Stream}.
-     * @param <T>         The type of the enumeration.
-     * @return The {@link Stream} originated from the given {@link Enumeration}.
-     */
-    private static final <T> Stream<T> enumerationAsStream(final Enumeration<? extends T> enumeration) {
-        return StreamSupport.stream(new EnumerationSpliterator<>(enumeration), false);
+        return (current / total) * Constants.ONE_HUNDRED;
     }
 
     /**
@@ -780,7 +784,7 @@ final class BytecodeVersionAnalyzer {
      * for Multi-Release JAR support.
      * <p>
      * This method uses versionedStream method if available (Java 10+), skips META-INF/versions, refreshes
-     * entry (to get versioned one on Java 9+) and uses {@link JarEntryVersionConsumer#shouldSkip(JarEntry, String, JarEntry, JarFile)}.
+     * entry (to get versioned one on Java 9+) and uses JarEntryVersionConsumer#shouldSkip.
      * <p>
      * This means it has full Multi-Release support requirements described in {@link BytecodeVersionAnalyzer#newJarFile(String)},
      * if you construct the given {@link JarFile} with that method, of course.
@@ -791,41 +795,41 @@ final class BytecodeVersionAnalyzer {
      * guaranteed to be a valid class.
      */
     private static final Map<String, ClassFileVersion> getClassFileVersionsInJar(final JarFile jar) {
-        final Stream<JarEntry> stream;
-        try {
-            if (debug && versionedStream == null) {
-                warning("using non-versioned enumeration stream");
-            }
-            // must be done
-            //noinspection unchecked
-            stream = versionedStream != null ? ((Stream<JarEntry>) versionedStream.invoke(jar)) : enumerationAsStream(jar.entries());
-        } catch (final Throwable tw) {
-            throw handleError(tw);
-        }
+        final Stream<JarEntry> stream = VersionedJarFileStream.stream(jar);
 
         // create processor
-        final JarEntryVersionConsumer jarEntryVersionConsumer = new JarEntryVersionConsumer(jar);
+        try (final ZipFile zip = new ZipFile(jar.getName())) {
+            final JarEntryVersionConsumer jarEntryVersionConsumer = new JarEntryVersionConsumer(jar, zip);
 
-        // create a process tracker to track progress of entries processed
-        final ProcessTracker tracker = new ProcessTrackerBuilder()
-            .interval(500L, TimeUnit.MILLISECONDS) // every 500ms
-            .current(jarEntryVersionConsumer.entries::size) // current supplier
-            .notify((current, total) -> info("Processing entries... (" + current + ")"))
-            .build()
-            .start();
+            // create a process tracker to track progress of entries processed
+            final ProgressTracker tracker = new ProgressTrackerBuilder()
+                .interval(500L, TimeUnit.MILLISECONDS) // every 500ms
+                .current(jarEntryVersionConsumer.entries::size) // current supplier
+                .notify((current, total) -> Logging.info("Processing entries... (" + current + (total != -1 ? ("/" + total + ")") : ")")))
+                .build();
 
-        final Timing timer = new Timing();
-        timer.start();
+            if (track) {
+                tracker.start();
+            }
 
-        // start processing - process will be tracked with above code.
-        stream.forEach(jarEntryVersionConsumer);
+            final Timing timer = new Timing();
+            timer.start();
 
-        timer.stop();
-        tracker.stop(); // process is completed, stop tracking it.
+            // start processing - process will be tracked with above code.
+            final Consumer<Stream<JarEntry>> processEntries = entriesStream -> entriesStream.forEach(jarEntryVersionConsumer);
+            StreamUtils.parallel(stream, processEntries, threads.get(), async, "Bytecode version analyzer entry processor thread");
 
-        info("Processed " + jarEntryVersionConsumer.entries.size() + " entries in " + timer);
+            timer.stop();
+            tracker.stop(); // process is completed, stop tracking it.
 
-        return jarEntryVersionConsumer.classes;
+            if (track) {
+                Logging.info("Processed " + jarEntryVersionConsumer.entries.size() + " entries in " + timer);
+            }
+
+            return jarEntryVersionConsumer.classes;
+        } catch (final IOException e) {
+            throw handleError(e);
+        }
     }
 
     /**
@@ -837,7 +841,7 @@ final class BytecodeVersionAnalyzer {
      *                     illegal major / minor version specifications.
      */
     private static final ClassFileVersion getClassFileVersion(final File file) throws IOException {
-        try (final InputStream in = new BufferedInputStream(new FileInputStream(file))) {
+        try (final InputStream in = StreamUtils.buffered(new FileInputStream(file))) {
             return getClassFileVersion(in);
         }
     }
@@ -851,23 +855,29 @@ final class BytecodeVersionAnalyzer {
      * @throws IOException If the file is not a valid Java class or contain
      *                     illegal major / minor version specifications.
      */
-    private static final ClassFileVersion getClassFileVersion(final InputStream in) throws IOException {
-        final DataInputStream data = new DataInputStream(in);
+    static final ClassFileVersion getClassFileVersion(final InputStream in) throws IOException {
+        try (final DataInputStream data = new DataInputStream(in)) {
+            verifyJavaClassFileIdentifier(data);
 
-        final int magic = data.readInt();
+            // Note: Do not reverse the order, minor comes first.
+            final int minor = Constants.HEXADECIMAL_ALL_BITS_ONE & data.readShort();
+            final int major = Constants.HEXADECIMAL_ALL_BITS_ONE & data.readShort();
 
+            return ClassFileVersion.get(major, minor);
+        }
+    }
+
+    /**
+     * Verifies a class by checking if the provided {@link DataInput} representing class
+     * contains the {@link Constants#JAVA_CLASS_FILE_IDENTIFIER}.
+     *
+     * @param data The {@link DataInput} representing the class to verify.
+     */
+    private static final void verifyJavaClassFileIdentifier(final DataInput data) throws IOException {
         // Identifier for Java class files
-        if (magic != JAVA_CLASS_FILE_IDENTIFIER) {
+        if (data.readInt() != Constants.JAVA_CLASS_FILE_IDENTIFIER && verify) {
             throw new IOException("invalid Java class");
         }
-
-        // Note: Do not reverse the order, minor comes first.
-        final int minor = HEXADECIMAL_ALL_BITS_ONE & data.readShort();
-        final int major = HEXADECIMAL_ALL_BITS_ONE & data.readShort();
-
-        data.close();
-
-        return new ClassFileVersion(major, minor);
     }
 
     /**
@@ -904,72 +914,116 @@ final class BytecodeVersionAnalyzer {
         return model.getIssueManagement().getUrl();
     }
 
-    /**
-     * Loads the pom.xml file either from the content root (works when running/building from IDE)
-     * or the META-INF/maven directory, using the {@link BytecodeVersionAnalyzer#GROUP_ID} and {@link BytecodeVersionAnalyzer#ARTIFACT_ID}.
-     */
-    private static final void loadPom() {
-        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/" + GROUP_ID + "/" + ARTIFACT_ID + "/pom.xml");
+    private static final InputStream getResource(final String pathOrName) {
+        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(pathOrName);
+        if (stream == null) {
+            try {
+                final Path path = Paths.get(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource(".")).toURI());
+                final File file = new File(path.getParent().getParent().toString(), pathOrName);
+
+                if (file.exists()) {
+                    stream = new FileInputStream(file);
+                }
+            } catch (final FileNotFoundException | URISyntaxException e) {
+                return null;
+            }
+        }
+        return stream;
+    }
+
+    private static final Properties getProjectProperties() {
+        if (projectProperties != null) {
+            return projectProperties;
+        }
+
+        projectProperties = new Properties();
 
         try {
-            if (stream == null) {
-                try {
-                    final Path path = Paths.get(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource(".")).toURI());
-                    final File file = new File(path.getParent().getParent().toString(), "pom.xml");
+            projectProperties.load(getResource("project.properties"));
+        } catch (final IOException e) {
+            throw handleError(e);
+        }
 
-                    if (file.exists()) {
-                        stream = new BufferedInputStream(new FileInputStream(file));
-                    }
-                } catch (final FileNotFoundException | URISyntaxException e) {
-                    return;
-                }
+        return projectProperties;
+    }
 
-                if (stream == null) {
-                    return;
-                }
-            }
+    /**
+     * Loads the pom.xml file either from the content root (works when running/building from IDE)
+     * or the META-INF/maven directory, using the {@link BytecodeVersionAnalyzer#groupId} and {@link BytecodeVersionAnalyzer#artifactId}.
+     */
+    private static final void loadPom() {
+        InputStream pomStream = getResource("META-INF/maven/" + groupId.get() + "/" + artifactId.get() + "/pom.xml");
 
+        if (pomStream == null) {
+            pomStream = getResource("pom.xml");
+        }
+
+        try (final InputStream stream = pomStream) {
             final MavenXpp3Reader reader = new MavenXpp3Reader();
 
-            try (final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            try (final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(StreamUtils.buffered(stream), StandardCharsets.UTF_8))) {
                 model = reader.read(bufferedReader);
-            } catch (final IOException | XmlPullParserException e) {
-                throw handleError(e);
             }
-        } finally {
-            if (stream != null) {
-                try {
-                    stream.close();
-                } catch (final IOException e) {
-                    handleError(e);
-                }
-            }
+        } catch (final IOException | XmlPullParserException e) {
+            throw handleError(e);
         }
     }
 
     /**
-     * Displays the CLI help message.
+     * Displays the CLI help message, only printing standard arguments.
      */
     private static final void displayHelp() {
-        info();
-        info("Bytecode Version Analyzer v" + getVersion());
-        info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " GNU General Public License v3.0");
-        info();
-        info("Source code can be found at: " + getSourceUrl());
-        info();
-        info("Usage:");
-        info();
-        info("Analyze bytecode version of class files from the provided JAR file:");
-        info("[--print-if-below <major.minor or Java version>] [--print-if-above <major.minor or Java version>] <paths-to-jars>");
-        info();
-        info("Show bytecode version of a class file:");
-        info("[--print-if-below <major.minor or Java version>] [--print-if-above <major.minor or Java version>] <paths-to-class-files>");
-        info();
-        info("Additional arguments");
-        info();
-        info("--filter <filter text>: Filters the --print-if-above and --print-if-below messages to those that contain the specified text only.");
-        info("i.e great for filtering to your package only, or a specific library's package only.");
-        info();
+        displayHelp(false);
+    }
+
+    /**
+     * Displays the CLI help message; optionally printing all arguments.
+     */
+    private static final void displayHelp(final boolean explicitHelp) {
+        printHeader();
+        Logging.info("Usage:");
+        Logging.info();
+        Logging.info("Analyze bytecode version of class files from the provided JAR file:");
+        Logging.info("[--print-if-below <major.minor or Java version>] [--print-if-above <major.minor or Java version>] <paths-to-jars>");
+        Logging.info();
+        Logging.info("Show bytecode version of a class file:");
+        Logging.info("[--print-if-below <major.minor or Java version>] [--print-if-above <major.minor or Java version>] <paths-to-class-files>");
+        Logging.info();
+        Logging.info("Additional arguments:");
+        Logging.info();
+        Logging.info("--filter <filter text>: Filters the --print-if-above and --print-if-below messages to those that contain the specified text only.");
+        Logging.info("i.e great for filtering to your package only, or a specific library's package only.");
+        Logging.info();
+        if (!explicitHelp) {
+            Logging.info("--help: Displays all arguments including experimental and non-standard ones.");
+        } else {
+            Logging.info("All arguments:");
+            loadArguments();
+            argumentMap.get().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new))
+                .forEach((key, value) -> {
+                        if (!value.hasNext()) {
+                            Logging.info(key);
+                            return;
+                        }
+                        Logging.info(key + " <value>");
+                    }
+                );
+        }
+        Logging.info();
+    }
+
+    /**
+     * Prints the CLI header.
+     */
+    private static final void printHeader() {
+        Logging.info();
+        Logging.info("Bytecode Version Analyzer v" + getVersion());
+        Logging.info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " GNU General Public License v3.0");
+        Logging.info();
+        Logging.info("Source code can be found at: " + getSourceUrl());
+        Logging.info();
     }
 
     /**
@@ -983,11 +1037,11 @@ final class BytecodeVersionAnalyzer {
      * @return An empty exception that can be thrown to stop the code execution.
      */
     @SuppressWarnings("SameReturnValue")
-    private static final RuntimeException handleError(final Throwable error) {
-        error();
-        error("An error occurred when running Bytecode Version Analyzer.");
-        error("Please report the error below by creating a new issue on " + getIssuesUrl());
-        error();
+    public static final RuntimeException handleError(final Throwable error) {
+        Logging.error();
+        Logging.error("An error occurred when running Bytecode Version Analyzer.");
+        Logging.error("Please report the error below by creating a new issue on " + getIssuesUrl());
+        Logging.error();
 
         error.printStackTrace();
 
@@ -996,1103 +1050,42 @@ final class BytecodeVersionAnalyzer {
         return StopCodeExecution.INSTANCE;
     }
 
-    /**
-     * Prints an empty information message.
-     */
-    private static final void info() {
-        info("");
+    public static final boolean isBuffered() {
+        return buffered;
+    }
+
+    public static final boolean isParallel() {
+        return parallel;
     }
 
     /**
-     * Prints an information message.
+     * Checks if entry processing will run on parallel with more than one threads.
+     * If this method returns true, thread-safe collections should be used instead of normal ones.
      *
-     * @param message The message to be printed.
+     * @return True if the entry processing will run on parallel with more than one threads.
      */
-    private static final void info(final String message) {
-        System.out.println(message);
+    static final boolean isEffectivelyParallel() {
+        return parallel && threads.getSyncIfNull() > 1;
     }
 
     /**
-     * Prints an empty warning message.
-     */
-    private static final void warning() {
-        warning("");
-    }
-
-    /**
-     * Prints a warning message.
+     * Returns a new {@link HashMap}, concurrent or not, depending on {@link BytecodeVersionAnalyzer#isEffectivelyParallel()}.
      *
-     * @param message The message to be printed.
+     * @param <K> The type of keys for {@link HashMap}.
+     * @param <V> The type of values for {@link HashSet}.
+     * @return A new {@link HashMap}, concurrent or not, depending on {@link BytecodeVersionAnalyzer#isEffectivelyParallel()}.
      */
-    private static final void warning(final String message) {
-        System.err.println(WARNING_PREFIX + message);
+    static final <K, V> Map<K, V> newHashMap() {
+        return isEffectivelyParallel() ? new ConcurrentHashMap<>() : new HashMap<>();
     }
 
     /**
-     * Prints an empty error message.
-     */
-    private static final void error() {
-        error("");
-    }
-
-    /**
-     * Prints a error message.
+     * Returns a new {@link HashSet}, concurrent or not, depending on {@link BytecodeVersionAnalyzer#isEffectivelyParallel()}.
      *
-     * @param message The message to be printed.
+     * @param <E> The type of elements for {@link HashSet}.
+     * @return A new {@link HashSet}, concurrent or not, depending on {@link BytecodeVersionAnalyzer#isEffectivelyParallel()}.
      */
-    private static final void error(final String message) {
-        System.err.println(ERROR_PREFIX + message);
-    }
-
-    /**
-     * A combination of {@link BiConsumer} and {@link IntConsumer}.
-     * Unfortunately there is no {@link BiIntConsumer} in the JDK, currently. So we use our own interface.
-     * <p>
-     * This not compatible with any of the mentioned classes and will not necessarily provide their new methods like
-     * {@link BiConsumer#andThen(BiConsumer)}.
-     *
-     * @see BiConsumer
-     * @see IntConsumer
-     */
-    @FunctionalInterface
-    private interface BiIntConsumer {
-        /**
-         * Runs this {@link BiIntConsumer} with the given parameters.
-         *
-         * @param value1 The first value.
-         * @param value2 The second value.
-         */
-        void accept(final int value1, final int value2);
-    }
-
-    /**
-     * Represents an execution of an argument.
-     */
-    private static final class ArgumentAction {
-        /**
-         * The action to execute.
-         */
-        private final BiConsumer<String, ArgumentParseResult> action;
-        /**
-         * The next {@link ArgumentAction} if this action has a value.
-         */
-        private final ArgumentAction next;
-
-        /**
-         * Creates a new {@link ArgumentAction}.
-         *
-         * @param action The action to execute.
-         */
-        private ArgumentAction(final BiConsumer<String, ArgumentParseResult> action) {
-            this.action = action;
-            next = null;
-        }
-
-        /**
-         * Creates a new {@link ArgumentAction}.
-         *
-         * @param next The next {@link ArgumentAction}.
-         */
-        private ArgumentAction(final ArgumentAction next) {
-            this.next = next;
-            action = null;
-        }
-
-        /**
-         * Runs the action.
-         *
-         * @param arg    The argument to be passed into action.
-         * @param result The mutable result to be processed by action.
-         */
-        private final void run(final String arg, final ArgumentParseResult result) {
-            final BiConsumer<String, ArgumentParseResult> act;
-
-            if (action != null) {
-                act = action;
-            } else {
-                // To avoid recursion
-                ArgumentAction lastAction = next;
-
-                while (lastAction.next != null) {
-                    lastAction = lastAction.next;
-                }
-
-                act = lastAction.action;
-            }
-
-            act.accept(arg, result);
-        }
-
-        /**
-         * Checks if this action has a next {@link ArgumentAction}.
-         *
-         * @return True if this action has a next {@link ArgumentAction}.
-         */
-        private final boolean hasNext() {
-            return next != null;
-        }
-
-        /**
-         * Gets the next {@link ArgumentAction}.
-         *
-         * @return The next {@link ArgumentAction}.
-         */
-        private final ArgumentAction getNext() {
-            return next;
-        }
-
-        /**
-         * Returns the debug string representation of this {@link ArgumentAction}.
-         *
-         * @return The debug string representation of this {@link ArgumentAction}.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "ArgumentAction{" +
-                "action=" + action +
-                ", next=" + next +
-                '}';
-        }
-    }
-
-    /**
-     * A builder for the class {@link ProcessTracker}.
-     */
-    private static final class ProcessTrackerBuilder {
-        /**
-         * The interval of {@link ProcessTracker}.
-         */
-        private long interval;
-        /**
-         * The current of {@link ProcessTracker}.
-         */
-        private IntSupplier current;
-        /**
-         * The total of {@link ProcessTracker}.
-         */
-        private IntSupplier total;
-        /**
-         * The notify of {@link ProcessTracker}.
-         */
-        private BiIntConsumer notify;
-
-        /**
-         * Sets interval of {@link ProcessTracker}.
-         *
-         * @param interval The interval.
-         * @return This {@link ProcessTrackerBuilder} instance for chaining.
-         */
-        private final ProcessTrackerBuilder interval(final long interval) {
-            this.interval = interval;
-            return this;
-        }
-
-        /**
-         * Sets interval of {@link ProcessTracker}.
-         *
-         * @param interval The interval.
-         * @param unit     The unit.
-         * @return This {@link ProcessTrackerBuilder} instance for chaining.
-         */
-        private final ProcessTrackerBuilder interval(final long interval, final TimeUnit unit) {
-            return interval(unit.toNanos(interval));
-        }
-
-        /**
-         * Sets current of {@link ProcessTracker}.
-         *
-         * @param current The current.
-         * @return This {@link ProcessTrackerBuilder} instance for chaining.
-         */
-        private final ProcessTrackerBuilder current(final IntSupplier current) {
-            this.current = current;
-            return this;
-        }
-
-        /**
-         * Sets total of {@link ProcessTracker}.
-         *
-         * @param total The total.
-         * @return This {@link ProcessTrackerBuilder} instance for chaining.
-         */
-        private final ProcessTrackerBuilder total(final IntSupplier total) {
-            this.total = total;
-            return this;
-        }
-
-        /**
-         * Sets notify of {@link ProcessTracker}.
-         *
-         * @param notify The notify.
-         * @return This {@link ProcessTrackerBuilder} instance for chaining.
-         */
-        private final ProcessTrackerBuilder notify(final BiIntConsumer notify) {
-            this.notify = notify;
-            return this;
-        }
-
-        /**
-         * Builds this {@link ProcessTracker}.
-         *
-         * @return The {@link ProcessTracker}.
-         */
-        private final ProcessTracker build() {
-            return new ProcessTracker(interval, current, total, notify);
-        }
-
-        /**
-         * Returns the debug string representation of this {@link ProcessTrackerBuilder}.
-         *
-         * @return The debug string representation of this {@link ProcessTrackerBuilder}.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "ProcessTrackerBuilder{" +
-                "interval=" + interval +
-                ", current=" + current +
-                ", total=" + total +
-                ", notify=" + notify +
-                '}';
-        }
-    }
-
-    /**
-     * A class for tracking process of something.
-     */
-    private static final class ProcessTracker {
-        /**
-         * The interval to run this tracker on.
-         */
-        private final long interval;
-        /**
-         * Currently processed count.
-         */
-        private final IntSupplier current;
-        /**
-         * Total count, might not be available, i.e on {@link Stream Streams}.
-         */
-        private final IntSupplier total;
-        /**
-         * The notify hook that accepts current and total count.
-         */
-        private final BiIntConsumer notify;
-        /**
-         * The executor to schedule our task at given interval.
-         */
-        private ScheduledExecutorService executor;
-        /**
-         * Our last scheduled task, stored to be able to cancel it.
-         */
-        private ScheduledFuture<?> task;
-
-        /**
-         * Creates a new {@link ProcessTracker}.
-         * Consider using {@link ProcessTrackerBuilder} instead.
-         *
-         * @param interval The interval to check for progress.
-         * @param current  The supplier to the current value.
-         * @param total    The supplier to the total value.
-         * @param notify   The notify hook that will run every given interval.
-         */
-        private ProcessTracker(final long interval, final IntSupplier current, final IntSupplier total, final BiIntConsumer notify) {
-            this.interval = interval;
-
-            this.current = current;
-            this.total = total;
-
-            this.notify = notify;
-        }
-
-        /**
-         * Starts this {@link ProcessTracker}.
-         * <p>
-         * The process tracker thread will be a daemon thread meaning it will stop when all other threads stop and exit the JVM.
-         * However this often not desired and you want to stop tracking as soon as the task is complete.
-         * <p>
-         * Then you must call {@link ProcessTracker#stop()} after the task is complete.
-         *
-         * @return This {@link ProcessTracker} instance for ease of use.
-         * @see ProcessTracker#stop()
-         */
-        private final ProcessTracker start() {
-            if (executor == null) {
-                executor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Process Tracker", t -> t.setDaemon(true)));
-            }
-
-            if (interval > 0L) {
-                task = executor
-                    .scheduleAtFixedRate(this::onInterval, interval, interval, TimeUnit.NANOSECONDS);
-            }
-
-            return this;
-        }
-
-        /**
-         * Stops this {@link ProcessTracker} completely.
-         * Cancels the tasks and shutdowns the executor, too.
-         * <p>
-         * It can be started again, however. With a new executor and a new task of course.
-         * <p>
-         * This method will do nothing if the task is not started, so it can be called before/without
-         * starting, or can be called multiple times, without side effects.
-         *
-         * @return This {@link ProcessTracker} instance for ease of use.
-         * @see ProcessTracker#start()
-         */
-        private final ProcessTracker stop() {
-            // Cancel & nullify our task
-            if (task != null) {
-                task.cancel(false);
-                task = null;
-            }
-
-            // Shutdown % nullify our executor
-            if (executor != null) {
-                executor.shutdown();
-                executor = null;
-            }
-
-            return this;
-        }
-
-        /**
-         * Runs the notify hook.
-         */
-        private final void onInterval() {
-            // Note: Do not remove try, ScheduledExecutorService hides exception and cancels task if task fails in an exceptional way.
-            try {
-                notify.accept(current != null ? current.getAsInt() : -1, total != null ? total.getAsInt() : -1);
-            } catch (final Throwable tw) {
-                throw handleError(tw);
-            }
-        }
-
-        /**
-         * Returns the debug string representation of this {@link ProcessTracker}.
-         *
-         * @return The debug string representation of this {@link ProcessTracker}.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "ProcessTracker{" +
-                "interval=" + interval +
-                ", current=" + current +
-                ", total=" + total +
-                ", notify=" + notify +
-                ", executor=" + executor +
-                ", task=" + task +
-                '}';
-        }
-    }
-
-    /**
-     * A {@link ThreadFactory} implementation for ease of use.
-     */
-    private static final class NamedThreadFactory implements ThreadFactory {
-        /**
-         * A global name tracker that keeps track of thread names and their duplicate name prevention IDs.
-         */
-        private static final Map<String, Long> globalNameTracker = new HashMap<>();
-
-        /**
-         * A supplier that gives a {@link Thread} name.
-         */
-        private final Supplier<String> nameSupplier;
-        /**
-         * A hook that set-ups the {@link Thread Threads}.
-         */
-        private final Consumer<Thread> hook;
-
-        /**
-         * Creates a new {@link NamedThreadFactory}.
-         *
-         * @param nameSupplier The name supplier that gives a {@link Thread} name.
-         */
-        private NamedThreadFactory(final Supplier<String> nameSupplier) {
-            this(nameSupplier, t -> {
-            });
-        }
-
-        /**
-         * Creates a new {@link NamedThreadFactory}.
-         *
-         * @param name The name of the threads that will be created using this {@link ThreadFactory}.
-         *             Duplicates names are prevented and a suffix will be added to duplicate names with a unique ID.
-         */
-        private NamedThreadFactory(final String name) {
-            this(name, t -> {
-            });
-        }
-
-        /**
-         * Creates a new {@link NamedThreadFactory}.
-         *
-         * @param nameSupplier The name supplier that gives a {@link Thread} name.
-         * @param hook         The hook to run after a new {@link Thread} is created.
-         */
-        private NamedThreadFactory(final Supplier<String> nameSupplier, final Consumer<Thread> hook) {
-            this.nameSupplier = nameSupplier;
-            this.hook = hook;
-        }
-
-        /**
-         * Creates a new {@link NamedThreadFactory}.
-         *
-         * @param name The name of the threads that will be created using this {@link ThreadFactory}.
-         *             Duplicates names are prevented and a suffix will be added to duplicate names with a unique ID.
-         * @param hook The hook to run after a new {@link Thread} is created.
-         */
-        private NamedThreadFactory(final String name, final Consumer<Thread> hook) {
-            this(() -> preventDuplicates(name), hook);
-        }
-
-        /**
-         * Adds a suffix to given name if it is already used by a {@link Thread}.
-         * Otherwise, marks the name as used and returns the name without the suffix.
-         *
-         * @param name The name to prevent duplicates of it.
-         * @return An unique name in the format "name #id" if duplicated, otherwise just the
-         * given name.
-         */
-        private static final String preventDuplicates(final String name) {
-            final long start = 1L;
-            final long current = globalNameTracker.computeIfAbsent(name, key -> start);
-
-            if (current == start) {
-                return name;
-            }
-
-            final long next = current + 1;
-            globalNameTracker.put(name, next);
-
-            return getThreadSuffix(() -> next, () -> next);
-        }
-
-        /**
-         * Creates a new thread.
-         *
-         * @param r The runnable to pass to thread.
-         * @return The new thread.
-         */
-        @Override
-        public final Thread newThread(final Runnable r) {
-            final Thread thread = new Thread(r, nameSupplier.get());
-            thread.setUncaughtExceptionHandler(uncaughtExceptionHandler);
-
-            hook.accept(thread);
-            return thread;
-        }
-
-        /**
-         * Returns the debug string representation of this {@link NamedThreadFactory}.
-         *
-         * @return The debug string representation of this {@link NamedThreadFactory}.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "NamedThreadFactory{" +
-                "nameSupplier=" + nameSupplier +
-                ", hook=" + hook +
-                '}';
-        }
-    }
-
-    /**
-     * A custom uncaught exception handler that is different from Java's default.
-     * Java's default implementation only ignore {@link ThreadDeath} exceptions.
-     * <p>
-     * We added our {@link StopCodeExecution} too, to do ignored exceptions list.
-     */
-    private static final class BytecodeVersionAnalyzerUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
-        /**
-         * Handles an uncaught exception exactly like Java's default {@link Thread.UncaughtExceptionHandler},
-         * but also ignoring {@link StopCodeExecution} together with {@link ThreadDeath}.
-         *
-         * @param t The thread that generated the exception.
-         * @param e The exception that occurred.
-         */
-        @Override
-        public final void uncaughtException(final Thread t, final Throwable e) {
-            if (!(e instanceof ThreadDeath) && !(e instanceof StopCodeExecution)) {
-                System.err.print("Exception in thread \"" + t.getName() + "\" ");
-                e.printStackTrace(System.err);
-            }
-        }
-    }
-
-    /**
-     * The consumer, that processes {@link JarEntry} objects in a {@link JarFile} and stores the class file information.
-     * You should first create a new instance of this class as {@link JarFile} as an argument, then supply this to {@link Stream#forEach(Consumer)} method.
-     * <p>
-     * And then you can get the class file information by accessing {@link JarEntryVersionConsumer#classes}.
-     */
-    private static final class JarEntryVersionConsumer implements Consumer<JarEntry> {
-        /**
-         * The map storing entry (class) names and their versions.
-         */
-        private final Map<String, ClassFileVersion> classes = new HashMap<>();
-        /**
-         * A set which stores all entry names, to check for any duplicate.
-         */
-        private final Set<String> entries = new HashSet<>();
-        /**
-         * The {@link JarFile} of the {@link JarEntry} to consume.
-         */
-        private final JarFile jar;
-
-        /**
-         * Creates a new {@link JarEntryVersionConsumer}.
-         *
-         * @param jar The {@link JarFile} that will own {@link JarEntry JarEntries}.
-         */
-        private JarEntryVersionConsumer(final JarFile jar) {
-            this.jar = jar;
-        }
-
-        /**
-         * Checks for duplicates and prints a warning when a duplicate is found.
-         * If a duplicate entry exists on a JAR, it may cause issues.
-         *
-         * @param entries The entries collection to add and check for duplicates.
-         * @param name    The name of the entry to check for duplicate and add if not.
-         */
-        private static final void duplicateEntryCheck(final Collection<String> entries, final String name) {
-            if (!entries.add(name)) {
-                warning("duplicate entry: " + name);
-            }
-        }
-
-        /**
-         * Checks for signing extensions on the given file name and prints an information message
-         * if the file extension looks like a signing extension.
-         *
-         * @param fileName The file name to check for signing extensions.
-         */
-        private static final void detectSigningFile(final String fileName) {
-            if (fileName.endsWith(".RSA") || fileName.endsWith(".DSA") || fileName.endsWith(".SF") || fileName.endsWith(".EC") || fileName.startsWith("SIG-")) {
-                info("found signing file: " + fileName);
-            }
-        }
-
-        /**
-         * Processes a class.
-         *
-         * @param classes   The classes map to put class file version information into.
-         * @param jar       The {@link JarFile} to get a {@link InputStream} via {@link JarFile#getInputStream(ZipEntry)}.
-         * @param entry     The {@link JarEntry} that represents a class file to process.
-         * @param entryName The name of the given {@link JarEntry}.
-         */
-        private static final void processClass(final Map<String, ClassFileVersion> classes, final JarFile jar, final JarEntry entry, final String entryName) {
-            try (final InputStream in = new BufferedInputStream(jar.getInputStream(entry))) {
-                classes.put(entryName, getClassFileVersion(in));
-            } catch (final IOException e) {
-                error("error when processing class: " + e.getMessage());
-            }
-        }
-
-        /**
-         * Checks if the given {@link CharSequence} is a digit.
-         * Uses {@link Character#isDigit(char)}, but checks for all characters.
-         *
-         * @param cs The {@link CharSequence} to check.
-         * @return True if the {@link CharSequence} only consists of digits.
-         */
-        private static final boolean isDigit(final CharSequence cs) {
-            final int csLength = cs.length();
-
-            for (int i = 0; i < csLength; i++) {
-                if (!Character.isDigit(cs.charAt(i))) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        /**
-         * Determines if the given {@link JarEntry} should be skipped.
-         * <p>
-         * {@link JarEntry JarEntries} will be skipped when they are non-versioned compiler generated classes, i.e synthetic classes.
-         *
-         * @return Whatever the given {@link JarEntry} should be skipped or not.
-         */
-        private static final boolean shouldSkip(final JarEntry entry, final String entryName, final JarEntry oldEntry, final JarFile jar) {
-            // Skip the non-versioned compiler generated classes
-
-            // JarEntry or ZipEntry does not implement a equals method, but they implement a hashCode method.
-            // So we use it to check equality.
-            if (entryName.contains("$") && entry.hashCode() == oldEntry.hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
-                final String[] nestedClassSplit = entryName.split("\\$"); // Note: This will not impact performance, String#split has a fast path for single character arguments.
-
-                // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
-                if (isDigit(dotClassPatternMatcher.reset(nestedClassSplit[1]).replaceAll(""))) { // A synthetic accessor class, or an anonymous/lambda class.
-                    final String baseClassName = nestedClassSplit[0] + ".class";
-                    final JarEntry baseClassJarEntry = jar.getJarEntry(baseClassName);
-
-                    final ZipEntry baseClassEntry;
-
-                    try (final ZipFile zip = new ZipFile(jar.getName())) {
-                        baseClassEntry = zip.getEntry(baseClassName);
-                    } catch (final IOException e) {
-                        throw handleError(e);
-                    }
-
-                    if (baseClassJarEntry != null && baseClassJarEntry.hashCode() != baseClassEntry.hashCode()) { // Base class is found and versioned
-                        if (debug) {
-                            info("skipping " + entryName + " (non-versioned compiler generated class whose base class is found and versioned)");
-                        }
-
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        /**
-         * Process an entry.
-         *
-         * @param classes The classes map to hold information about classes and their versions.
-         * @param entries The entries map to keep track of duplicate entries.
-         * @param jar     The {@link JarFile} for refreshing the entry for versioning and getting {@link InputStream}.
-         * @param entry   The {@link JarEntry} to start with before refreshing.
-         */
-        private static final void accept0(final Map<String, ClassFileVersion> classes, final Collection<String> entries,
-                                          final JarFile jar, final JarEntry entry) {
-            final String name = entry.getName();
-            duplicateEntryCheck(entries, name);
-
-            if (!entry.isDirectory()) {
-                detectSigningFile(name);
-
-                if (name.endsWith(".class") && !name.contains("META-INF/versions")) {
-                    final JarEntry newEntry = jar.getJarEntry(name);
-
-                    if (shouldSkip(newEntry, name, entry, jar)) {
-                        return;
-                    }
-
-                    processClass(classes, jar, newEntry, name);
-                }
-            }
-        }
-
-        /**
-         * Processes the given entry.
-         *
-         * @param entry The {@link JarEntry} to process.
-         */
-        @Override
-        public final void accept(final JarEntry entry) {
-            accept0(classes, entries, jar, entry);
-        }
-
-        /**
-         * Returns a debug string for this {@link JarEntryVersionConsumer} instance.
-         *
-         * @return Debug string for this {@link JarEntryVersionConsumer} instance.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "JarEntryVersionConsumer{" +
-                "classes=" + classes +
-                ", entries=" + entries +
-                ", jar=" + jar +
-                '}';
-        }
-    }
-
-    /**
-     * Represents the parse result of arguments.
-     */
-    private static final class ArgumentParseResult {
-        /**
-         * The printIfBelow argument.
-         */
-        private ClassFileVersion printIfBelow;
-        /**
-         * The printIfAbove argument.
-         */
-        private ClassFileVersion printIfAbove;
-
-        /**
-         * The archivePath {@link String}.
-         */
-        private String archivePath;
-        /**
-         * Tracks if we printed class file version of a single class already.
-         * If false, we will try to interpret argument as JAR instead.
-         */
-        private boolean printedAtLeastOneVersion;
-        /**
-         * The filter argument.
-         * Used for filtering warnings printed by printIfAbove and printIfBelow.
-         */
-        private String filter;
-
-        /**
-         * Constructs an empty {@link ArgumentParseResult}.
-         * The fields should be initialized later if this constructor is used.
-         */
-        private ArgumentParseResult() {
-            /* implicit super-call */
-        }
-
-        /**
-         * Constructs a argument parse result. The fields can be changed later.
-         * To create an empty one with default field values (null, false, etc.), use the no-arg constructor.
-         *
-         * @param printIfBelow             The printIfBelow argument.
-         * @param printIfAbove             The printIfAbove argument.
-         * @param archivePath              The {@link String} of archive path.
-         * @param printedAtLeastOneVersion True if printed a version of single class file.
-         * @param filter                   The filter used to filter warning messages printed by printIfBelow and printIfAbove.
-         */
-        private ArgumentParseResult(final ClassFileVersion printIfBelow, final ClassFileVersion printIfAbove, final String archivePath,
-                                    final boolean printedAtLeastOneVersion, final String filter) {
-            this.printIfBelow = printIfBelow;
-            this.printIfAbove = printIfAbove;
-
-            this.archivePath = archivePath;
-            this.printedAtLeastOneVersion = printedAtLeastOneVersion;
-
-            this.filter = filter;
-        }
-
-        /**
-         * Returns the debug string representation of this {@link ArgumentParseResult}.
-         *
-         * @return The debug string representation of this {@link ArgumentParseResult}.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "ArgumentParseResult{" +
-                "printIfBelow=" + printIfBelow +
-                ", printIfAbove=" + printIfAbove +
-                ", archivePath=" + archivePath +
-                ", printedAtLeastOneVersion=" + printedAtLeastOneVersion +
-                ", filter='" + filter + '\'' +
-                '}';
-        }
-    }
-
-    /**
-     * Used for timing something, i.e a long operation.
-     * Or a short one, for analytic purposes.
-     */
-    private static final class Timing {
-        /**
-         * The start time.
-         */
-        @SuppressWarnings("FieldNotUsedInToString")
-        private long startTime;
-        /**
-         * The end time.
-         */
-        @SuppressWarnings("FieldNotUsedInToString")
-        private long finishTime;
-
-        /**
-         * Starts the timing.
-         */
-        private final void start() {
-            startTime = System.nanoTime();
-        }
-
-        /**
-         * Resets the timing to current time,
-         * calls both {@link Timing#start()} and {@link Timing#stop()}.
-         */
-        private final void reset() {
-            start();
-            stop();
-        }
-
-        /**
-         * Stops the timing.
-         */
-        private final void stop() {
-            finishTime = System.nanoTime();
-        }
-
-        /**
-         * Gets the elapsed time in the given unit.
-         *
-         * @param unit The unit of the return value.
-         * @return The elapsed time in the requested unit.
-         */
-        private final long getElapsedTime(final TimeUnit unit) {
-            return unit.convert(finishTime - startTime, TimeUnit.NANOSECONDS);
-        }
-
-        /**
-         * Returns the string representation of this timing.
-         */
-        @Override
-        public final String toString() {
-            final long elapsedTime = getElapsedTime(TimeUnit.MILLISECONDS);
-
-            //noinspection StringConcatenationMissingWhitespace
-            return elapsedTime + "ms";
-        }
-    }
-
-    /**
-     * Represents a class file version, with a major and minor version.
-     */
-    private static final class ClassFileVersion {
-        /**
-         * The major version of the class file.
-         */
-        private final int major;
-        /**
-         * The minor version of the class file.
-         */
-        private final int minor;
-
-        /**
-         * Creates a new {@link ClassFileVersion} object with the given major and minor version values.
-         *
-         * @param major The major version of the new {@link ClassFileVersion} object.
-         * @param minor The minor version of the new {@link ClassFileVersion} object.
-         */
-        private ClassFileVersion(final int major, final int minor) {
-            this.major = major;
-            this.minor = minor;
-        }
-
-        /**
-         * Creates a new {@link ClassFileVersion} from the given Java version.
-         *
-         * @param javaVersion The Java version to convert into {@link ClassFileVersion}.
-         * @return The {@link ClassFileVersion} representing the given Java version.
-         */
-        private static final ClassFileVersion fromJavaVersion(final String javaVersion) {
-            // NumberFormatException is callers problem
-            return fromBytecodeVersionString((Integer.parseInt(javaVersion) + JAVA_CLASS_FILE_VERSION_START) + ".0"); // lgtm [java/uncaught-number-format-exception]
-        }
-
-        /**
-         * Creates a new {@link ClassFileVersion} parsing the given string.
-         * <p>
-         * This method first tries to parse it as bytecode version with the major.minor format,
-         * and falls back to using {@link ClassFileVersion#fromJavaVersion(String)} if it fails.
-         *
-         * @param bytecodeOrJavaVersionString The string to parse and transform into {@link ClassFileVersion}.
-         * @return The {@link ClassFileVersion} representing the given Java version.
-         */
-        private static final ClassFileVersion fromString(final String bytecodeOrJavaVersionString) {
-            try {
-                return fromBytecodeVersionString(bytecodeOrJavaVersionString);
-            } catch (final IllegalArgumentException e) {
-                return fromJavaVersion(bytecodeOrJavaVersionString);
-            }
-        }
-
-        /**
-         * Converts the given bytecode version string into a {@link ClassFileVersion} object, creating a new instance on each call.
-         * <p>
-         * The given bytecode version string should be on the major.minor format (i.e. 52.0).
-         *
-         * @param bytecodeVersionString The bytecode version string to parse and crete a new {@link ClassFileVersion} for it.
-         * @return The {@link ClassFileVersion} representing the given bytecode version string.
-         */
-        private static final ClassFileVersion fromBytecodeVersionString(final String bytecodeVersionString) {
-            final String[] splitByDot = bytecodeVersionString.split("\\."); // Note: This will not impact performance, String#split has a fast path for single character arguments.
-
-            if (splitByDot.length != 2) {
-                throw new IllegalArgumentException("not in major.minor format: " + bytecodeVersionString);
-            }
-
-            final int major = Integer.parseInt(splitByDot[0]);
-            final int minor = Integer.parseInt(splitByDot[1]);
-
-            return new ClassFileVersion(major, minor);
-        }
-
-        /**
-         * Checks if this class file version is higher than the given one.
-         *
-         * @param other The other class file version.
-         * @return True if this class file version is higher either in major or minor than
-         * the given one, false otherwise. (same or lower)
-         */
-        private final boolean isHigherThan(final ClassFileVersion other) {
-            if (major > other.major)
-                return true;
-            return major == other.major && minor > other.minor;
-        }
-
-        /**
-         * Checks if this class file version is a preview class file version.
-         * (meaning it is compiled by using --enable-preview argument and can use preview features.)
-         *
-         * @return True if this class file version is a preview class file version, false otherwise.
-         */
-        private final boolean isPreview() {
-            return minor == PREVIEW_CLASS_FILE_MINOR_VERSION;
-        }
-
-        /**
-         * Returns the Java version equivalent of this {@link ClassFileVersion}.
-         *
-         * @return The Java version equivalent of this {@link ClassFileVersion}.
-         */
-        private final int toJavaVersion() {
-            return major - JAVA_CLASS_FILE_VERSION_START;
-        }
-
-        /**
-         * Converts this {@link ClassFileVersion} to a string.
-         * <p>
-         * Uses major.minor format. The returned value can be converted back using {@link ClassFileVersion#fromBytecodeVersionString(String)}.
-         * <p>
-         * Use {@link ClassFileVersion#toJavaVersion()} instead if you need the Java version instead of bytecode version.
-         *
-         * @return The bytecode version string representing this {@link ClassFileVersion}.
-         */
-        @Override
-        public final String toString() {
-            return major + "." + minor;
-        }
-
-        /**
-         * Converts this {@link ClassFileVersion} to a string, adding both bytecode and Java version.
-         * <p>
-         * Uses {@link ClassFileVersion#toString()} and {@link ClassFileVersion#toJavaVersion()}.
-         * <p>
-         * The Java version will be added to the result of {@link ClassFileVersion#toString()} with a space
-         * and parentheses prefixed with "Java".
-         *
-         * @return The string representation of this {@link ClassFileVersion} including both bytecode version and the Java version.
-         * The return value can not be reverted back to {@link ClassFileVersion} using standard methods.
-         */
-        private final String toStringAddJavaVersionToo() {
-            return this + " (Java " + toJavaVersion() + (isPreview() ? ", with preview features enabled)" : ")");
-        }
-
-        /**
-         * Checks for equality with another {@link ClassFileVersion}.
-         *
-         * @param obj The other {@link ClassFileVersion} to check equality.
-         * @return True if both are equal in major & minor, false otherwise.
-         */
-        @Override
-        public final boolean equals(final Object obj) {
-            if (this == obj) return true;
-            if (!(obj instanceof ClassFileVersion)) return false;
-
-            final ClassFileVersion version = (ClassFileVersion) obj;
-            return major == version.major && minor == version.minor;
-        }
-
-        /**
-         * Returns the unique hashcode of this {@link ClassFileVersion}.
-         *
-         * @return The unique hashcode of this {@link ClassFileVersion}.
-         */
-        @Override
-        public final int hashCode() {
-            // Note: No Objects#hashCode to avoid autoboxing
-            int result = major;
-            result = HASH_CODE_MAGIC_NUMBER * result + minor;
-
-            return result;
-        }
-    }
-
-    /**
-     * A {@link RuntimeException} that is only thrown for the sole purpose of stopping the code execution.
-     * <p>
-     * It has a null message, null cause, suppression and stack trace disabled. Constructor is private to
-     * promote usage of the singleton instance. Since it has no stack, creating new instances are unnecessary.
-     */
-    @SuppressWarnings("SerializableHasSerializationMethods")
-    private static final class StopCodeExecution extends RuntimeException {
-        /**
-         * A singleton to use instead of creating new objects every time.
-         */
-        private static final StopCodeExecution INSTANCE = new StopCodeExecution();
-        /**
-         * The serial version UUID for this exception, for supporting serialization.
-         */
-        private static final long serialVersionUID = -6852778657371379400L;
-
-        /**
-         * A private constructor to promote usage of the singleton {@link StopCodeExecution#INSTANCE}.
-         */
-        private StopCodeExecution() {
-            super(null, null, false, false);
-        }
-    }
-
-    /**
-     * A class for using {@link Enumeration}s as {@link Spliterators}.
-     *
-     * @param <T> The type of the {@link Enumeration}.
-     */
-    private static final class EnumerationSpliterator<T> extends Spliterators.AbstractSpliterator<T> {
-        /**
-         * The {@link Enumeration}.
-         */
-        private final Enumeration<? extends T> enumeration;
-
-        /**
-         * Constructs a new {@link EnumerationSpliterator}.
-         *
-         * @param enumeration The {@link Enumeration}.
-         */
-        private EnumerationSpliterator(final Enumeration<? extends T> enumeration) {
-            super(Long.MAX_VALUE, Spliterator.ORDERED & Spliterator.IMMUTABLE);
-
-            this.enumeration = enumeration;
-        }
-
-        /**
-         * Runs the specified consumer if there is more elements.
-         *
-         * @param action The consumer to invoke.
-         * @return True if the consumer is invoked, false otherwise.
-         */
-        @Override
-        public final boolean tryAdvance(final Consumer<? super T> action) {
-            if (enumeration.hasMoreElements()) {
-                action.accept(enumeration.nextElement());
-                return true;
-            }
-            return false;
-        }
-
-        /**
-         * Invokes the given consumer for each element remaining.
-         *
-         * @param action The consumer to invoke.
-         */
-        @Override
-        public final void forEachRemaining(final Consumer<? super T> action) {
-            while (enumeration.hasMoreElements()) {
-                action.accept(enumeration.nextElement());
-            }
-        }
-
-        /**
-         * Returns debug string of this {@link EnumerationSpliterator}.
-         *
-         * @return The debug string of this {@link EnumerationSpliterator}.
-         */
-        @Override
-        public final String toString() {
-            //noinspection MagicCharacter
-            return "EnumerationSpliterator{" +
-                "enumeration=" + enumeration +
-                '}';
-        }
+    public static final <E> Set<E> newHashSet() {
+        return isEffectivelyParallel() ? ConcurrentHashMap.newKeySet() : new HashSet<>();
     }
 }
