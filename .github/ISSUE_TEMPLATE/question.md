@@ -1,6 +1,6 @@
 ---
 name: Question
-description: Ask a question about this project
+about: Ask a question about this project
 title: ''
 labels: ''
 assignees: ''
