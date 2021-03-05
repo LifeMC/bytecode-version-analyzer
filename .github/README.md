@@ -48,7 +48,7 @@ classes use 52.0 (Java 8) for every different bytecode version. Here is an image
 
 ![image](https://user-images.githubusercontent.com/24778409/107349967-e78a9a80-6ad9-11eb-8577-602ec6ceba4c.png)
 
-# Example Use Cases
+# Example use cases
 
 You can find old libraries that compile with/into Java 6, or you can find for example libraries that compile into Java
 11, or other versions.
