@@ -4,7 +4,7 @@ package com.lifemcserver.bytecodeversionanalyzer.extensions;
  * A custom uncaught exception handler that is different from Java's default.
  * Java's default implementation only ignore {@link ThreadDeath} exceptions.
  * <p>
- * We added our {@link StopCodeExecution} too, to do ignored exceptions list.
+ * We added our {@link StopCodeExecution} too, to the ignored exceptions list.
  */
 public final class StopCodeExecutionUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
     /**

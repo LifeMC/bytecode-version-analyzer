@@ -13,7 +13,7 @@ import java.util.function.IntSupplier;
 import java.util.stream.Stream;
 
 /**
- * A class for tracking process of something.
+ * A class for tracking progress of something.
  */
 public final class ProgressTracker {
     /**
@@ -62,7 +62,7 @@ public final class ProgressTracker {
     /**
      * Starts this {@link ProgressTracker}.
      * <p>
-     * The process tracker thread will be a daemon thread meaning it will stop when all other threads stop and exit the JVM.
+     * The progress tracker thread will be a daemon thread meaning it will stop when all other threads stop and exit the JVM.
      * However this often not desired and you want to stop tracking as soon as the task is complete.
      * <p>
      * Then you must call {@link ProgressTracker#stop()} after the task is complete.
@@ -72,7 +72,7 @@ public final class ProgressTracker {
      */
     public final ProgressTracker start() {
         if (executor == null) {
-            executor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Process Tracker", t -> {
+            executor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Progress Tracker", t -> {
                 t.setDaemon(true);
                 t.setPriority(t.getPriority() / 2);
             }));
@@ -80,7 +80,7 @@ public final class ProgressTracker {
 
         if (interval > 0L) {
             task = executor
-                .scheduleAtFixedRate(this::onInterval, interval, interval, TimeUnit.NANOSECONDS);
+                .scheduleWithFixedDelay(this::onInterval, interval, interval, TimeUnit.NANOSECONDS);
         }
 
         return this;

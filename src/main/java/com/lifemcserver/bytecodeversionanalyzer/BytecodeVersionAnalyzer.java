@@ -124,7 +124,7 @@ public final class BytecodeVersionAnalyzer {
      */
     private static long threadCount;
     /**
-     * The verbosity which fail the execution (returning an exit code of -1) if messages on that verbosity
+     * The verbosity which fail the execution (returning a non-zero exit code) if messages on that verbosity
      * or higher are printed.
      */
     private static Verbosity failVerbosity = Verbosity.ERROR;

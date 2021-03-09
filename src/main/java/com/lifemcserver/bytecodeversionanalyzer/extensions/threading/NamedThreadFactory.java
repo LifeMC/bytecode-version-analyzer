@@ -43,7 +43,7 @@ public final class NamedThreadFactory implements ThreadFactory, ForkJoinPool.For
      * Creates a new {@link NamedThreadFactory}.
      *
      * @param name The name of the threads that will be created using this {@link ThreadFactory}.
-     *             Duplicates names are prevented and a suffix will be added to duplicate names with a unique ID.
+     *             Duplicate names are prevented and a suffix will be added to duplicate names with a unique ID.
      */
     public NamedThreadFactory(final String name) {
         this(name, t -> {
@@ -65,7 +65,7 @@ public final class NamedThreadFactory implements ThreadFactory, ForkJoinPool.For
      * Creates a new {@link NamedThreadFactory}.
      *
      * @param name The name of the threads that will be created using this {@link ThreadFactory}.
-     *             Duplicates names are prevented and a suffix will be added to duplicate names with a unique ID.
+     *             Duplicate names are prevented and a suffix will be added to duplicate names with a unique ID.
      * @param hook The hook to run after a new {@link Thread} is created.
      */
     public NamedThreadFactory(final String name, final Consumer<Thread> hook) {
