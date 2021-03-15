@@ -4,6 +4,7 @@ import com.lifemcserver.bytecodeversionanalyzer.BytecodeVersionAnalyzer;
 import com.lifemcserver.bytecodeversionanalyzer.Constants;
 import com.lifemcserver.bytecodeversionanalyzer.extensions.collections.EnumerationSpliterator;
 import com.lifemcserver.bytecodeversionanalyzer.extensions.threading.NamedThreadFactory;
+import com.lifemcserver.bytecodeversionanalyzer.extensions.threading.SupplierManagedBlock;
 import com.lifemcserver.bytecodeversionanalyzer.logging.Logging;
 
 import java.io.BufferedInputStream;
@@ -11,6 +12,7 @@ import java.io.InputStream;
 import java.util.Enumeration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -56,15 +58,26 @@ public final class StreamUtils {
             } else {
                 threadsCount = threads;
             }
+
             final ForkJoinPool forkJoinPool = new ForkJoinPool(threadsCount, new NamedThreadFactory(name), BytecodeVersionAnalyzer.uncaughtExceptionHandler.get(), async);
+            final ForkJoinTask<?> task = forkJoinPool.submit(() -> SupplierManagedBlock.callInManagedBlock(action));
+
+            // Reduce priority of current thread, which will wait until the task in the pool is finished.
+            final Thread currentThread = Thread.currentThread();
+
+            final int oldPriority = currentThread.getPriority();
+            currentThread.setPriority(oldPriority / 2);
+
             try {
-                forkJoinPool.submit(action).get();
+                task.get();
             } catch (final InterruptedException e) {
                 // Re-interrupt the thread
-                Thread.currentThread().interrupt();
+                currentThread.interrupt();
             } catch (final ExecutionException e) {
                 throw BytecodeVersionAnalyzer.handleError(e);
             } finally {
+                // Restore priority and shutdown the pool
+                currentThread.setPriority(oldPriority);
                 forkJoinPool.shutdown();
             }
         } else {
