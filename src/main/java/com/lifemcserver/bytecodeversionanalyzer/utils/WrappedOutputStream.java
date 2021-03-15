@@ -31,7 +31,8 @@ public final class WrappedOutputStream extends OutputStream {
     public final String toString() {
         //noinspection MagicCharacter
         return "WrappedOutputStream{" +
-            "hook=" + hook +
+            "original=" + original +
+            ", hook=" + hook +
             '}';
     }
 }

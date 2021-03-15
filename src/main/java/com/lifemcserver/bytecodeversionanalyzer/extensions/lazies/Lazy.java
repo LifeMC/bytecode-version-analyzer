@@ -102,6 +102,15 @@ public class Lazy<T> {
     }
 
     /**
+     * Returns true if the supplier is invoked and the value is initialized (not guaranteed if supplier threw exception).
+     *
+     * @return True if the supplier is invoked, and the value is initialized (not guaranteed if supplier threw exception).
+     */
+    public final boolean isSupplierInvoked() {
+        return supplierInvoked;
+    }
+
+    /**
      * Returns the debug string representation of this {@link Lazy}.
      *
      * @return The debug string representation of this {@link Lazy}.

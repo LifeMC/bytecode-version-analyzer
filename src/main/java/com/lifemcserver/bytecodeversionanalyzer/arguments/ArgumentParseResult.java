@@ -42,11 +42,11 @@ public final class ArgumentParseResult {
      * Constructs a argument parse result. The fields can be changed later.
      * To create an empty one with default field values (null, false, etc.), use the no-arg constructor.
      *
-     * @param printIfBelow             The printIfBelow argument.
-     * @param printIfAbove             The printIfAbove argument.
-     * @param archivePath              The {@link String} of archive path.
+     * @param printIfBelow                The printIfBelow argument.
+     * @param printIfAbove                The printIfAbove argument.
+     * @param archivePath                 The {@link String} of archive path.
      * @param hasPrintedAtLeastOneVersion True if printed a version of single class file.
-     * @param filter                   The filter used to filter warning messages printed by printIfBelow and printIfAbove.
+     * @param filter                      The filter used to filter warning messages printed by printIfBelow and printIfAbove.
      */
     public ArgumentParseResult(final ClassFileVersion printIfBelow, final ClassFileVersion printIfAbove, final String archivePath,
                                final boolean hasPrintedAtLeastOneVersion, final String filter) {
@@ -136,6 +136,7 @@ public final class ArgumentParseResult {
      *
      * @return {@link ArgumentParseResult#filter}
      */
+    @SuppressWarnings("TypeMayBeWeakened")
     public final String getFilter() {
         return filter;
     }
