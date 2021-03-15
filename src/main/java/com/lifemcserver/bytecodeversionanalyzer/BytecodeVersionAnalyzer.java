@@ -915,10 +915,11 @@ public final class BytecodeVersionAnalyzer {
     }
 
     private static final InputStream getResource(final String pathOrName) {
-        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(pathOrName);
+        final Thread currentThread = Thread.currentThread();
+        InputStream stream = currentThread.getContextClassLoader().getResourceAsStream(pathOrName);
         if (stream == null) {
             try {
-                final Path path = Paths.get(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource(".")).toURI());
+                final Path path = Paths.get(Objects.requireNonNull(currentThread.getContextClassLoader().getResource(".")).toURI());
                 final File file = new File(path.getParent().getParent().toString(), pathOrName);
 
                 if (file.exists()) {

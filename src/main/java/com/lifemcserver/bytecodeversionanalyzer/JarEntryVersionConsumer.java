@@ -77,7 +77,7 @@ final class JarEntryVersionConsumer implements Consumer<JarEntry> {
      * @param fileName The file name to check for signing extensions.
      */
     private static final void detectSigningFile(final String fileName) {
-        if (fileName.endsWith(".RSA") || fileName.endsWith(".DSA") || fileName.endsWith(".SF") || fileName.endsWith(".EC") || fileName.startsWith("SIG-")) {
+        if (fileName.startsWith("SIG-") || fileName.endsWith(".RSA") || fileName.endsWith(".DSA") || fileName.endsWith(".SF") || fileName.endsWith(".EC")) {
             Logging.info("found signing file: " + fileName);
         }
     }
@@ -143,7 +143,7 @@ final class JarEntryVersionConsumer implements Consumer<JarEntry> {
 
         // JarEntry or ZipEntry does not implement a equals method, but they implement a hashCode method.
         // So we use it to check equality.
-        if (entryName.contains("$") && entry.hashCode() == oldEntry.hashCode() && oldEntry.hashCode() == zip.getEntry(oldEntry.getName()).hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
+        if (entry.hashCode() == oldEntry.hashCode() && entryName.contains("$") && oldEntry.hashCode() == zip.getEntry(oldEntry.getName()).hashCode()) { // Compiler generated class (not necessarily a fully generated class, maybe just a nested class) and is not versioned
             final String[] nestedClassSplit = entryName.split("\\$"); // Note: This will not impact performance, String#split has a fast path for single character arguments.
 
             // If it is a fully generated class, compiler formats it like ClassName$<id>.class, where <id> is a number, i.e. 1
