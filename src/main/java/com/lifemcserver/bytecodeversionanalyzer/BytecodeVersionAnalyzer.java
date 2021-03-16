@@ -844,7 +844,8 @@ public final class BytecodeVersionAnalyzer {
      *                     illegal major / minor version specifications.
      */
     private static final ClassFileVersion getClassFileVersion(final File file) throws IOException {
-        try (final InputStream in = StreamUtils.buffered(new FileInputStream(file))) {
+        try (final FileInputStream fis = new FileInputStream(file);
+             final InputStream in = StreamUtils.buffered(fis)) {
             return getClassFileVersion(in);
         }
     }
