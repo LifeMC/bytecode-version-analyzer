@@ -322,6 +322,9 @@ public final class BytecodeVersionAnalyzer {
                 Logging.info("the jar is a multi release jar");
             } else {
                 Logging.info("the jar is not a multi release jar");
+				if (jar.getJarEntry("META-INF/versions") != null) {
+					Logging.warning("the jar is not a multi release jar; but it has META-INF/versions. consider adding Multi-Release: true to MANIFEST.MF for clarification and/or launch your program with -Djdk.util.jar.enableMultiRelease=force, otherwise they will have no effect on runtime! (note that the latter does not resolve this warning)");
+				}
             }
 
             if (isSealed(manifest)) {
