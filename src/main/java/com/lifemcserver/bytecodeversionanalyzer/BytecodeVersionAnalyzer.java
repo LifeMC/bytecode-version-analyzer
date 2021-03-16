@@ -268,7 +268,7 @@ public final class BytecodeVersionAnalyzer {
 
         // Initialize parse result variables
         final String path = result.getArchivePath();
-        final boolean printedAtLeastOneVersion = result.getHasPrintedAtLeastOneVersion();
+        final boolean printedAtLeastOneVersion = result.hasPrintedAtLeastOneVersion();
 
         // Check file path
         final File archiveFile = new File(path);
@@ -322,9 +322,9 @@ public final class BytecodeVersionAnalyzer {
                 Logging.info("the jar is a multi release jar");
             } else {
                 Logging.info("the jar is not a multi release jar");
-				if (jar.getJarEntry("META-INF/versions") != null) {
-					Logging.warning("the jar is not a multi release jar; but it has META-INF/versions. consider adding Multi-Release: true to MANIFEST.MF for clarification and/or launch your program with -Djdk.util.jar.enableMultiRelease=force, otherwise they will have no effect on runtime! (note that the latter does not resolve this warning)");
-				}
+                if (jar.getJarEntry("META-INF/versions") != null) {
+                    Logging.warning("the jar is not a multi release jar; but it has META-INF/versions. consider adding Multi-Release: true to MANIFEST.MF for clarification and/or launch your program with -Djdk.util.jar.enableMultiRelease=force, otherwise they will have no effect on runtime! (note that the latter does not resolve this warning)");
+                }
             }
 
             if (isSealed(manifest)) {
@@ -1008,11 +1008,11 @@ public final class BytecodeVersionAnalyzer {
                 .sorted(Map.Entry.comparingByKey())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new))
                 .forEach((key, value) -> {
-                        if (!value.hasNext()) {
+                        if (value.hasNext()) {
+                            Logging.info(key + " <value>");
+                        } else {
                             Logging.info(key);
-                            return;
                         }
-                        Logging.info(key + " <value>");
                     }
                 );
         }

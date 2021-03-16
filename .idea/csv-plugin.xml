@@ -17,6 +17,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\arguments\ArgumentAction.java">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\src\main\java\com\lifemcserver\bytecodeversionanalyzer\arguments\ArgumentParseResult.java">
           <value>
             <Attribute>

@@ -118,7 +118,7 @@ public final class ArgumentParseResult {
      *
      * @return {@link ArgumentParseResult#hasPrintedAtLeastOneVersion}
      */
-    public final boolean getHasPrintedAtLeastOneVersion() {
+    public final boolean hasPrintedAtLeastOneVersion() {
         return hasPrintedAtLeastOneVersion;
     }
 
