@@ -229,7 +229,7 @@ public final class BytecodeVersionAnalyzer {
      * @param args The arguments to check and process.
      */
     private static final void runCli(final String[] args) {
-        if (args == null || args.length < 1 || args[0] == null || args[0].length() < 1) {
+        if (args == null || args.length < 1 || args[0] == null || args[0].isEmpty()) {
             // Display the help and quit, called with no/invalid arguments; maybe just double clicking
             displayHelp();
             return;
