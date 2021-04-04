@@ -1055,10 +1055,24 @@ public final class BytecodeVersionAnalyzer {
         return StopCodeExecution.INSTANCE;
     }
 
+    /**
+     * Returns true if the processing is done buffered, i.e. {@link InputStream InputStreams} will be
+     * {@link BufferedInputStream BufferedInputStreams}.
+     * 
+     * @return True if the processing is done buffered.
+     */
     public static final boolean isBuffered() {
         return buffered;
     }
 
+    /**
+     * Returns true if the parallel processing is enabled.
+     * 
+     * Does not guarantee it will be done on more than one thread, though.
+     * 
+     * @return True if the parallel processing is enabled.
+     * @see BytecodeVersionAnalyzer#isEffectivelyParallel()
+     */
     public static final boolean isParallel() {
         return parallel;
     }
