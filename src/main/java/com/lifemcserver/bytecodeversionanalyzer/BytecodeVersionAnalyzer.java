@@ -1125,7 +1125,7 @@ public final class BytecodeVersionAnalyzer {
     @SuppressWarnings("SameReturnValue")
     public static final RuntimeException handleError(final Throwable error) {
         Logging.error();
-        Logging.error("An error occurred when running Bytecode Version Analyzer.");
+        Logging.error("An error occurred when running Bytecode Version Analyzer v" + getVersion());
         Logging.error("Please report the error below by creating a new issue on " + getIssuesUrl());
         Logging.error();
 
