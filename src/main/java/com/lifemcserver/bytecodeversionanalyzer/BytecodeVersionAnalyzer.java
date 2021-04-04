@@ -444,7 +444,6 @@ public final class BytecodeVersionAnalyzer {
 
         addArgument("debug", () -> {
             Logging.setVerbosity(Verbosity.DEBUG);
-            Logging.info("note: debug mode is enabled");
         });
 
         addArgument("timing", true, arg -> timed = parseBooleanFromUserInput(true, arg, timed));

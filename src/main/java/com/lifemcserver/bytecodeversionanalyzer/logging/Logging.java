@@ -32,7 +32,12 @@ public final class Logging {
      * @param newVerbosity The new verbosity to use.
      */
     public static final void setVerbosity(final Verbosity newVerbosity) {
+        final Verbosity oldVerbosity = verbosity;
         verbosity = newVerbosity;
+
+        if (oldVerbosity != Verbosity.DEBUG && verbosity == Verbosity.DEBUG) {
+            Logging.debug(() -> "note: debug mode is enabled");
+        }
     }
 
     /**
