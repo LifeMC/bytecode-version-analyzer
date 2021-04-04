@@ -465,6 +465,10 @@ public final class BytecodeVersionAnalyzer {
         });
 
         addArgument("help", (arg, result) -> {
+            if (result.hasPrintedAtLeastOneVersion()) {
+                return;
+            }
+
             result.setHasPrintedAtLeastOneVersion(true);
             displayHelp(true);
         });
