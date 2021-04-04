@@ -918,6 +918,11 @@ public final class BytecodeVersionAnalyzer {
         return model.getIssueManagement().getUrl();
     }
 
+    /**
+     * Tries to get the resource by the given name from the JAR as an InputStream.
+     * 
+     * @return The {@link InputStream} for the given name or null if not exists/can't find.
+     */
     private static final InputStream getResource(final String pathOrName) {
         final Thread currentThread = Thread.currentThread();
         InputStream stream = currentThread.getContextClassLoader().getResourceAsStream(pathOrName);
@@ -936,6 +941,11 @@ public final class BytecodeVersionAnalyzer {
         return stream;
     }
 
+    /**
+     * Gets the properties of project.
+     * 
+     * @return Properties of the project.
+     */
     private static final Properties getProjectProperties() {
         if (projectProperties != null) {
             return projectProperties;

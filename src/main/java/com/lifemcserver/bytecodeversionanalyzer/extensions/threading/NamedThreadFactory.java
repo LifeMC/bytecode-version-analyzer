@@ -1,6 +1,8 @@
 package com.lifemcserver.bytecodeversionanalyzer.extensions.threading;
 
 import com.lifemcserver.bytecodeversionanalyzer.BytecodeVersionAnalyzer;
+import com.lifemcserver.bytecodeversionanalyzer.logging.Logging;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -137,6 +139,7 @@ public final class NamedThreadFactory implements ThreadFactory, ForkJoinPool.For
         thread.setUncaughtExceptionHandler(BytecodeVersionAnalyzer.uncaughtExceptionHandler.get());
         hook.accept(thread);
 
+        Logging.debug(() -> "finished setting up thread " + thread.getName());
         return thread;
     }
 
