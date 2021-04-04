@@ -14,6 +14,8 @@ import com.lifemcserver.bytecodeversionanalyzer.logging.Verbosity;
 import com.lifemcserver.bytecodeversionanalyzer.utils.ProgressTracker;
 import com.lifemcserver.bytecodeversionanalyzer.utils.ProgressTrackerBuilder;
 import com.lifemcserver.bytecodeversionanalyzer.utils.StreamUtils;
+
+import org.apache.maven.model.License;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
@@ -992,6 +994,23 @@ public final class BytecodeVersionAnalyzer {
     }
 
     /**
+     * Gets the license name.
+     *
+     * @return The license name, "No-License" if there is no license defined, or, "Error-Loading-Pom" string if it can't get it.
+     */
+    private static final String getLicenseName() {
+        if (getModel() == null)
+            return "Error-Loading-Pom";
+
+        final List<License> licenses = model.getLicenses();
+        if (licenses.isEmpty()) {
+            return "No-License";
+        }
+
+        return licenses.get(0).getName();
+    }
+
+    /**
      * Tries to get the resource by the given name from the JAR as an InputStream.
      * 
      * @return The {@link InputStream} for the given name or null if not exists/can't find.
@@ -1108,7 +1127,7 @@ public final class BytecodeVersionAnalyzer {
     private static final void printHeader() {
         Logging.info();
         Logging.info("Bytecode Version Analyzer v" + getVersion());
-        Logging.info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " GNU General Public License v3.0");
+        Logging.info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " " + getLicenseName());
         Logging.info();
         Logging.info("Source code can be found at: " + getSourceUrl());
         Logging.info();
