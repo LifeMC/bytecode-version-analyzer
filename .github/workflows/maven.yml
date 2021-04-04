@@ -54,7 +54,7 @@ jobs:
                     restore-keys: ${{ runner.os }}-m2
 
             -   name: shellcheck
-                uses: ludeeus/action-shellcheck@1.0.0
+                uses: ludeeus/action-shellcheck@1.1.0
 
             -   name: Initialize CodeQL
                 uses: github/codeql-action/init@main
