@@ -532,6 +532,74 @@ public final class BytecodeVersionAnalyzer {
         }
     }
 
+
+    /**
+     * Ensures that the given number is in a specific range.
+     * 
+     * @param name The name to use on error messages if printErrors is true (i.e thread count).
+     * @param printErrors Whether to print errors or not.
+     * @param value The value to check for range.
+     * @param minimum The minimum value to allow.
+     * @param maximum The maximum value to allow.
+     * 
+     * @return The number, returning the minimum value if it is less than minimum and returning the maximum value
+     * if above the maximum.
+     */
+    public static final int limitRange(final String name, final boolean printErrors, final int value, final int minimum, final int maximum) {
+        if (value < minimum) {
+            if (printErrors) {
+                Logging.error(name + " not in required range, expected [" + minimum + ".." + maximum + "], got " + value + ", using minimum possible value " + minimum);
+            }
+            return minimum;
+        }
+        if (value > maximum) {
+            if (printErrors) {
+                Logging.error(name + " not in required range, expected [" + minimum + ".." + maximum + "], got " + value + ", using maximum possible value " + maximum);
+            }
+            return maximum;
+        }
+        return value;
+    }
+
+
+    /**
+     * Ensures that the given number is in a specific range.
+     * 
+     * @param name The name to use on error messages if printErrors is true (i.e thread count).
+     * @param printErrors Whether to print errors or not.
+     * @param value The value to check for range.
+     * @param minimum The minimum value to allow.
+     * @param maximum The maximum value to allow.
+     * @param defaultValue The default value to return if the number is not in range.
+     * 
+     * @return The number, or the default value if it is not in range (the number maybe same as default value though) 
+     */
+    public static final int limitRange(final String name, final boolean printErrors, final int value, final int minimum, final int maximum, final int defaultValue) {
+        return limitRange(name, printErrors, value, minimum, maximum, () -> defaultValue);
+    }
+
+    /**
+     * Ensures that the given number is in a specific range.
+     * 
+     * @param name The name to use on error messages if printErrors is true (i.e thread count).
+     * @param printErrors Whether to print errors or not.
+     * @param value The value to check for range.
+     * @param minimum The minimum value to allow.
+     * @param maximum The maximum value to allow.
+     * @param defaultValue The default value to return if the number is not in range.
+     * 
+     * @return The number, or the default value if it is not in range (the number maybe same as default value though) 
+     */
+    public static final int limitRange(final String name, final boolean printErrors, final int value, final int minimum, final int maximum, final IntSupplier defaultValue) {
+        if (value < minimum || value > maximum) {
+            if (printErrors) {
+                Logging.error(name + " not in required range, expected [" + minimum + ".." + maximum + "], got " + value + ", falling back to default of " + defaultValue);
+            }
+            return defaultValue.getAsInt();
+        }
+        return value;
+    }
+
     /**
      * Adds an argument.
      *
