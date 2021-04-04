@@ -211,6 +211,8 @@ public final class BytecodeVersionAnalyzer {
             Logging.info("Took " + timing);
         }
 
+        Logging.info("Exiting with code " + (failed ? "1" : "0"));
+
         if (failed) {
             // This will stop the code execution and VM will automatically set
             // the exit code to a non-zero code. We are not using System#exit since that will exit entire VM.
