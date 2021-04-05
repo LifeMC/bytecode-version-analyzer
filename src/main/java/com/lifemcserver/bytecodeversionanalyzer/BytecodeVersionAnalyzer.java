@@ -461,12 +461,14 @@ public final class BytecodeVersionAnalyzer {
         addArgument("verify", true, arg -> verify = parseBooleanFromUserInput(true, arg, verify));
 
         addArgument("verbosity", true, arg -> Logging.setVerbosity(Verbosity.fromString(true, arg, Logging.getVerbosity())));
+        
         addArgument("fail-verbosity", true, arg -> {
             failVerbosity = Verbosity.fromString(true, arg, failVerbosity);
 
             Verbosity.clearAllHooks();
             failVerbosity.onPrintRecursive(message -> failed = true);
         });
+        getArgument("fail-verbosity", false).run(failVerbosity.toString(), new ArgumentParseResult());
 
         addArgument("help", (arg, result) -> {
             if (result.hasPrintedAtLeastOneVersion()) {
@@ -674,6 +676,17 @@ public final class BytecodeVersionAnalyzer {
     }
 
     /**
+     * Gets an argument.
+     * 
+     * @param name The name of the argument to get.
+     * @param strict Pass false to relax and add -- infront automatically, true otherwise.
+     * @return The argument with the given name.
+     */
+    private static final ArgumentAction getArgument(final String name, final boolean strict) {
+        return argumentMap.get().get(name.startsWith("--") ? name : strict ? name : "--" + name);
+    }
+
+    /**
      * Parses the arguments and returns the parse result.
      *
      * @param args        The arguments.
@@ -690,7 +703,7 @@ public final class BytecodeVersionAnalyzer {
             final String arg = args[i];
 
             if (!arg.endsWith(".class")) {
-                final ArgumentAction argumentAction = argumentMap.get().get(arg);
+                final ArgumentAction argumentAction = getArgument(arg, true);
 
                 if (argumentAction != null) {
                     if (!argumentAction.hasNext()) {
