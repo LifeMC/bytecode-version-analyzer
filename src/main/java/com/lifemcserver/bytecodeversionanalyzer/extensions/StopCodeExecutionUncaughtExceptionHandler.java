@@ -1,5 +1,7 @@
 package com.lifemcserver.bytecodeversionanalyzer.extensions;
 
+import com.lifemcserver.bytecodeversionanalyzer.logging.Logging;
+
 /**
  * A custom uncaught exception handler that is different from Java's default.
  * Java's default implementation only ignore {@link ThreadDeath} exceptions.
@@ -19,6 +21,8 @@ public final class StopCodeExecutionUncaughtExceptionHandler implements Thread.U
         if (!(e instanceof ThreadDeath) && !(e instanceof StopCodeExecution)) {
             System.err.print("Exception in thread \"" + t.getName() + "\" ");
             e.printStackTrace(System.err);
+        } else {
+            Logging.debug(() -> "supressed exception in thread \"" + t.getName() + "\": " + e.getMessage());
         }
     }
 }

@@ -51,13 +51,7 @@ public final class StreamUtils {
 
         if (BytecodeVersionAnalyzer.isParallel()) {
             final int defaultThreadCount = Runtime.getRuntime().availableProcessors();
-            final int threadsCount;
-            if (threads < 1 || threads > Constants.MAX_FORKJOINPOOL_THREADS) { // implementation limits
-                Logging.error("thread count not in required range, expected [1.." + Constants.MAX_FORKJOINPOOL_THREADS + "], got " + threads + ", falling back to default of " + defaultThreadCount);
-                threadsCount = defaultThreadCount;
-            } else {
-                threadsCount = threads;
-            }
+            final int threadsCount = BytecodeVersionAnalyzer.limitRange("thread count", true, threads, 1, Constants.MAX_FORKJOINPOOL_THREADS, defaultThreadCount); // implementation limits
 
             final ForkJoinPool forkJoinPool = new ForkJoinPool(threadsCount, new NamedThreadFactory(name), BytecodeVersionAnalyzer.uncaughtExceptionHandler.get(), async);
             final ForkJoinTask<?> task = forkJoinPool.submit(() -> SupplierManagedBlock.callInManagedBlock(action));

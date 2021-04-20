@@ -6,7 +6,7 @@
 
     <groupId>com.lifemcserver</groupId>
     <artifactId>bytecode-version-analyzer</artifactId>
-    <version>0.5</version>
+    <version>0.6</version>
 
     <name>Bytecode Version Analyzer</name>
     <description>Analyzer for bytecode versions of class files in a JAR file.</description>
@@ -15,8 +15,8 @@
 
     <licenses>
         <license>
-            <name>GNU General Public License 3.0</name>
-            <url>https://www.gnu.org/licenses/gpl-3.0/</url>
+            <name>GNU General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
@@ -83,7 +83,7 @@
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-model</artifactId>
-            <version>3.6.3</version>
+            <version>3.8.1</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.commons</groupId>

@@ -14,6 +14,8 @@ import com.lifemcserver.bytecodeversionanalyzer.logging.Verbosity;
 import com.lifemcserver.bytecodeversionanalyzer.utils.ProgressTracker;
 import com.lifemcserver.bytecodeversionanalyzer.utils.ProgressTrackerBuilder;
 import com.lifemcserver.bytecodeversionanalyzer.utils.StreamUtils;
+
+import org.apache.maven.model.License;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
@@ -211,6 +213,8 @@ public final class BytecodeVersionAnalyzer {
             Logging.info("Took " + timing);
         }
 
+        Logging.info("Exiting with code " + (failed ? "1" : "0"));
+
         if (failed) {
             // This will stop the code execution and VM will automatically set
             // the exit code to a non-zero code. We are not using System#exit since that will exit entire VM.
@@ -225,7 +229,7 @@ public final class BytecodeVersionAnalyzer {
      * @param args The arguments to check and process.
      */
     private static final void runCli(final String[] args) {
-        if (args == null || args.length < 1 || args[0] == null || args[0].length() < 1) {
+        if (args == null || args.length < 1 || args[0] == null || args[0].isEmpty()) {
             // Display the help and quit, called with no/invalid arguments; maybe just double clicking
             displayHelp();
             return;
@@ -444,7 +448,6 @@ public final class BytecodeVersionAnalyzer {
 
         addArgument("debug", () -> {
             Logging.setVerbosity(Verbosity.DEBUG);
-            Logging.info("note: debug mode is enabled");
         });
 
         addArgument("timing", true, arg -> timed = parseBooleanFromUserInput(true, arg, timed));
@@ -458,14 +461,20 @@ public final class BytecodeVersionAnalyzer {
         addArgument("verify", true, arg -> verify = parseBooleanFromUserInput(true, arg, verify));
 
         addArgument("verbosity", true, arg -> Logging.setVerbosity(Verbosity.fromString(true, arg, Logging.getVerbosity())));
+        
         addArgument("fail-verbosity", true, arg -> {
             failVerbosity = Verbosity.fromString(true, arg, failVerbosity);
 
             Verbosity.clearAllHooks();
             failVerbosity.onPrintRecursive(message -> failed = true);
         });
+        getArgument("fail-verbosity", false).run(failVerbosity.toString(), new ArgumentParseResult());
 
         addArgument("help", (arg, result) -> {
+            if (result.hasPrintedAtLeastOneVersion()) {
+                return;
+            }
+
             result.setHasPrintedAtLeastOneVersion(true);
             displayHelp(true);
         });
@@ -530,6 +539,74 @@ public final class BytecodeVersionAnalyzer {
             }
             return defaultValue.getAsDouble();
         }
+    }
+
+
+    /**
+     * Ensures that the given number is in a specific range.
+     * 
+     * @param name The name to use on error messages if printErrors is true (i.e thread count).
+     * @param printErrors Whether to print errors or not.
+     * @param value The value to check for range.
+     * @param minimum The minimum value to allow.
+     * @param maximum The maximum value to allow.
+     * 
+     * @return The number, returning the minimum value if it is less than minimum and returning the maximum value
+     * if above the maximum.
+     */
+    public static final int limitRange(final String name, final boolean printErrors, final int value, final int minimum, final int maximum) {
+        if (value < minimum) {
+            if (printErrors) {
+                Logging.error(name + " not in required range, expected [" + minimum + ".." + maximum + "], got " + value + ", using minimum possible value " + minimum);
+            }
+            return minimum;
+        }
+        if (value > maximum) {
+            if (printErrors) {
+                Logging.error(name + " not in required range, expected [" + minimum + ".." + maximum + "], got " + value + ", using maximum possible value " + maximum);
+            }
+            return maximum;
+        }
+        return value;
+    }
+
+
+    /**
+     * Ensures that the given number is in a specific range.
+     * 
+     * @param name The name to use on error messages if printErrors is true (i.e thread count).
+     * @param printErrors Whether to print errors or not.
+     * @param value The value to check for range.
+     * @param minimum The minimum value to allow.
+     * @param maximum The maximum value to allow.
+     * @param defaultValue The default value to return if the number is not in range.
+     * 
+     * @return The number, or the default value if it is not in range (the number maybe same as default value though) 
+     */
+    public static final int limitRange(final String name, final boolean printErrors, final int value, final int minimum, final int maximum, final int defaultValue) {
+        return limitRange(name, printErrors, value, minimum, maximum, () -> defaultValue);
+    }
+
+    /**
+     * Ensures that the given number is in a specific range.
+     * 
+     * @param name The name to use on error messages if printErrors is true (i.e thread count).
+     * @param printErrors Whether to print errors or not.
+     * @param value The value to check for range.
+     * @param minimum The minimum value to allow.
+     * @param maximum The maximum value to allow.
+     * @param defaultValue The default value to return if the number is not in range.
+     * 
+     * @return The number, or the default value if it is not in range (the number maybe same as default value though) 
+     */
+    public static final int limitRange(final String name, final boolean printErrors, final int value, final int minimum, final int maximum, final IntSupplier defaultValue) {
+        if (value < minimum || value > maximum) {
+            if (printErrors) {
+                Logging.error(name + " not in required range, expected [" + minimum + ".." + maximum + "], got " + value + ", falling back to default of " + defaultValue);
+            }
+            return defaultValue.getAsInt();
+        }
+        return value;
     }
 
     /**
@@ -599,6 +676,17 @@ public final class BytecodeVersionAnalyzer {
     }
 
     /**
+     * Gets an argument.
+     * 
+     * @param name The name of the argument to get.
+     * @param strict Pass false to relax and add -- infront automatically, true otherwise.
+     * @return The argument with the given name.
+     */
+    private static final ArgumentAction getArgument(final String name, final boolean strict) {
+        return argumentMap.get().get(name.startsWith("--") ? name : strict ? name : "--" + name);
+    }
+
+    /**
      * Parses the arguments and returns the parse result.
      *
      * @param args        The arguments.
@@ -615,7 +703,7 @@ public final class BytecodeVersionAnalyzer {
             final String arg = args[i];
 
             if (!arg.endsWith(".class")) {
-                final ArgumentAction argumentAction = argumentMap.get().get(arg);
+                final ArgumentAction argumentAction = getArgument(arg, true);
 
                 if (argumentAction != null) {
                     if (!argumentAction.hasNext()) {
@@ -918,6 +1006,28 @@ public final class BytecodeVersionAnalyzer {
         return model.getIssueManagement().getUrl();
     }
 
+    /**
+     * Gets the license name.
+     *
+     * @return The license name, "No-License" if there is no license defined, or, "Error-Loading-Pom" string if it can't get it.
+     */
+    private static final String getLicenseName() {
+        if (getModel() == null)
+            return "Error-Loading-Pom";
+
+        final List<License> licenses = model.getLicenses();
+        if (licenses.isEmpty()) {
+            return "No-License";
+        }
+
+        return licenses.get(0).getName();
+    }
+
+    /**
+     * Tries to get the resource by the given name from the JAR as an InputStream.
+     * 
+     * @return The {@link InputStream} for the given name or null if not exists/can't find.
+     */
     private static final InputStream getResource(final String pathOrName) {
         final Thread currentThread = Thread.currentThread();
         InputStream stream = currentThread.getContextClassLoader().getResourceAsStream(pathOrName);
@@ -936,6 +1046,11 @@ public final class BytecodeVersionAnalyzer {
         return stream;
     }
 
+    /**
+     * Gets the properties of project.
+     * 
+     * @return Properties of the project.
+     */
     private static final Properties getProjectProperties() {
         if (projectProperties != null) {
             return projectProperties;
@@ -1025,7 +1140,7 @@ public final class BytecodeVersionAnalyzer {
     private static final void printHeader() {
         Logging.info();
         Logging.info("Bytecode Version Analyzer v" + getVersion());
-        Logging.info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " GNU General Public License v3.0");
+        Logging.info("Created by Mustafa Öncel @ LifeMC. © " + Year.now().getValue() + " " + getLicenseName());
         Logging.info();
         Logging.info("Source code can be found at: " + getSourceUrl());
         Logging.info();
@@ -1044,7 +1159,7 @@ public final class BytecodeVersionAnalyzer {
     @SuppressWarnings("SameReturnValue")
     public static final RuntimeException handleError(final Throwable error) {
         Logging.error();
-        Logging.error("An error occurred when running Bytecode Version Analyzer.");
+        Logging.error("An error occurred when running Bytecode Version Analyzer v" + getVersion());
         Logging.error("Please report the error below by creating a new issue on " + getIssuesUrl());
         Logging.error();
 
@@ -1055,10 +1170,24 @@ public final class BytecodeVersionAnalyzer {
         return StopCodeExecution.INSTANCE;
     }
 
+    /**
+     * Returns true if the processing is done buffered, i.e. {@link InputStream InputStreams} will be
+     * {@link BufferedInputStream BufferedInputStreams}.
+     * 
+     * @return True if the processing is done buffered.
+     */
     public static final boolean isBuffered() {
         return buffered;
     }
 
+    /**
+     * Returns true if the parallel processing is enabled.
+     * 
+     * Does not guarantee it will be done on more than one thread, though.
+     * 
+     * @return True if the parallel processing is enabled.
+     * @see BytecodeVersionAnalyzer#isEffectivelyParallel()
+     */
     public static final boolean isParallel() {
         return parallel;
     }

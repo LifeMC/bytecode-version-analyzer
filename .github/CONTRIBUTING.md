@@ -31,7 +31,7 @@ Don't be fear, we are all kind & formal here. Just open an issue if you don't kn
 it, Then just follow the above guidelines and open a pull request. If your pull request is merged, you are now a
 Contributor. Congratulations!
 
-**Also read the <a href="https://github.com/LifeMC/LifeSkript/blob/master/PROJECT_PREFERENCES.md">project
+**Also read the <a href="https://github.com/LifeMC/bytecode-version-analyzer/blob/master/PROJECT_PREFERENCES.md">project
 preferences</a> before making any contribution!**
 
 # Cloning and building the JAR
