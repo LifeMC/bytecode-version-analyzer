@@ -83,7 +83,7 @@ jobs:
                 uses: actions/upload-artifact@v2.2.3
                 with:
                     name: bytecode-version-analyzer-nightly.jar
-                    path: target/bytecode-version-analyzer.jar
+                    path: target/*.jar
 
             -   name: Perform CodeQL Analysis
                 uses: github/codeql-action/analyze@main
