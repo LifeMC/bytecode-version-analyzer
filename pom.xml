@@ -466,6 +466,7 @@
                     <proguardVersion>7.1.0-beta3</proguardVersion>
                     <options>
                         <option>-dontobfuscate</option>
+                        <option>-keep class com.lifemcserver.bytecodeversionanalyzer.BytecodeVersionAnalyzer</option>
                     </options>
                     <libs>
                         <lib>${java.home}/jmods/java.base.jmod</lib>
