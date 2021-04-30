@@ -26,7 +26,7 @@ public final class StreamUtils {
     }
 
     /**
-     * Runs an operation in parallel on the given stream, using given number of threads and async status & thread names.
+     * Runs an operation in parallel on the given stream, using given number of threads and async status &amp; thread names.
      * <p>
      * This will make the stream parallel if it is not parallel and {@link BytecodeVersionAnalyzer#isParallel()} is true.
      * If {@link BytecodeVersionAnalyzer#isParallel()} is false, the stream is untouched and operation will run normally.
