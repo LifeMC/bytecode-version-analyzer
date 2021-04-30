@@ -1,8 +1,10 @@
+package org.apache.maven.wrapper;
+
 import java.util.Properties;
 
-public class MavenWrapperDownloader {
+final class MavenWrapperDownloader {
 
-    private static final String WRAPPER_VERSION = "0.5.5";
+    private static final String WRAPPER_VERSION = "0.5.6";
     /**
      * Default URL to download the maven-wrapper.jar from, if no 'downloadUrl' is provided.
      */
@@ -27,7 +29,7 @@ public class MavenWrapperDownloader {
      */
     private static final String PROPERTY_NAME_WRAPPER_URL = "wrapperUrl";
 
-    public static void main(final String[] args) {
+    public static final void main(final String[] args) {
         System.out.println("- Downloader started");
         File baseDirectory = new File(args[0]);
         System.out.println("- Using base directory: " + baseDirectory.getAbsolutePath());
@@ -74,7 +76,7 @@ public class MavenWrapperDownloader {
         }
     }
 
-    private static void downloadFileFromURL(String urlString, File destination) throws IOException {
+    private static final void downloadFileFromURL(final String urlString, final File destination) throws IOException {
         if (System.getenv("MVNW_USERNAME") != null && System.getenv("MVNW_PASSWORD") != null) {
             String username = System.getenv("MVNW_USERNAME");
             char[] password = System.getenv("MVNW_PASSWORD").toCharArray();
