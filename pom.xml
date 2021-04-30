@@ -469,6 +469,7 @@
                     </options>
                     <libs>
                         <lib>${java.home}/jmods/java.base.jmod</lib>
+                        <lib>${java.home}/jmods/java.sql.jmod</lib>
                     </libs>
                 </configuration>
                 <dependencies>
