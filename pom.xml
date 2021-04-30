@@ -466,8 +466,18 @@
                     <proguardVersion>7.1.0-beta3</proguardVersion>
                     <options>
                         <option>-dontobfuscate</option>
+                        <option>-keepattributes **</option>
+                        <option>-optimizationpasses 10</option>
                         <option>-keep class com.lifemcserver.bytecodeversionanalyzer.BytecodeVersionAnalyzer { public static void main(java.lang.String[]); }</option>
                         <option>-keepclassmembers class * extends java.lang.Enum { &lt;fields&gt;; public static **[] values(); public static ** valueOf(java.lang.String); }</option>
+                        
+                        <!-- Keep all resources -->
+                        <option>-keeppackagenames pom.xml</option>
+                        <option>-keeppackagenames README.md</option>
+                        <option>-keeppackagenames project.properties</option>
+                        <option>-keeppackagenames LICENSE</option>
+                        <option>-keeppackagenames licenses</option>
+                        <option>-keeppackagenames META-INF</option>
                     </options>
                     <libs>
                         <lib>${java.home}/jmods/java.base.jmod</lib>
