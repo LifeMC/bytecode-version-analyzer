@@ -463,7 +463,7 @@
                    </execution>
                 </executions>
                 <configuration>
-                    <proguardVersion>7.0.1</proguardVersion>
+                    <proguardVersion>7.1.0-beta3</proguardVersion>
                     <options>
                         <option>-dontobfuscate</option>
                     </options>
