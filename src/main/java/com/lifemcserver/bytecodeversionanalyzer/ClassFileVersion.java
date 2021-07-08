@@ -159,7 +159,7 @@ public final class ClassFileVersion {
      * Checks for equality with another {@link ClassFileVersion}.
      *
      * @param obj The other {@link ClassFileVersion} to check equality.
-     * @return True if both are equal in major & minor, false otherwise.
+     * @return True if both are equal in major &amp; minor, false otherwise.
      */
     @Override
     public final boolean equals(final Object obj) {
