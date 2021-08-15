@@ -187,7 +187,7 @@
                                 <requireMavenVersion>
                                     <version>3.1.0</version>
                                 </requireMavenVersion>
-                                <banDuplicatePomDependencyVersions/>
+                                <!--<banDuplicatePomDependencyVersions/>
                                 <banDuplicateClasses>
                                     <scopes>
                                         <scope>compile</scope>
@@ -196,7 +196,7 @@
                                     <findAllDuplicates>true</findAllDuplicates>
                                     <ignoreWhenIdentical>false</ignoreWhenIdentical>
                                 </banDuplicateClasses>
-                                <banCircularDependencies/>
+                                <banCircularDependencies/>-->
                                 <!--<requireEncoding>
                                     <encoding>UTF-8</encoding>
                                     <acceptAsciiSubset>true</acceptAsciiSubset>
