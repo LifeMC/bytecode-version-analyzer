@@ -72,6 +72,12 @@ jobs:
                 run: |
                     ./mvnw clean verify --threads 1C --batch-mode --errors
 
+            -   name: Upload Artifact
+                uses: actions/upload-artifact@v2.2.4
+                with:
+                    name: bytecode-version-analyzer-nightly.jar
+                    path: target/bytecode-version-analyzer.jar
+
             -   name: Test CLI
                 run: |
                     java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom --help
@@ -79,12 +85,6 @@ jobs:
                     java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/bytecode-version-analyzer.jar
                     java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/original-bytecode-version-analyzer.jar
                     java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/classes/com/lifemcserver/bytecodeversionanalyzer/BytecodeVersionAnalyzer.class target/original-bytecode-version-analyzer.jar
-
-            -   name: Upload Artifact
-                uses: actions/upload-artifact@v2.2.4
-                with:
-                    name: bytecode-version-analyzer-nightly.jar
-                    path: target/bytecode-version-analyzer.jar
 
             -   name: Perform CodeQL Analysis
                 uses: github/codeql-action/analyze@main
