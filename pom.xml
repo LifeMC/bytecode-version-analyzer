@@ -83,7 +83,7 @@
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-model</artifactId>
-            <version>3.8.1</version>
+            <version>3.8.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.commons</groupId>
@@ -98,24 +98,24 @@
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-utils</artifactId>
-            <version>3.3.0</version>
+            <version>3.4.1</version>
         </dependency>
         <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
-            <version>20.1.0</version>
+            <version>22.0.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.8.0-M1</version>
+            <version>5.8.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.8.0-M1</version>
+            <version>5.8.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -156,7 +156,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
-                <version>3.0.0-M3</version>
+                <version>3.0.0</version>
                 <dependencies>
                     <dependency>
                         <groupId>org.codehaus.mojo</groupId>
@@ -172,7 +172,7 @@
                     <dependency>
                         <groupId>org.codehaus.plexus</groupId>
                         <artifactId>plexus-utils</artifactId>
-                        <version>3.3.0</version>
+                        <version>3.4.1</version>
                     </dependency>
                 </dependencies>
                 <executions>
@@ -187,7 +187,7 @@
                                 <requireMavenVersion>
                                     <version>3.1.0</version>
                                 </requireMavenVersion>
-                                <banDuplicatePomDependencyVersions/>
+                                <!--<banDuplicatePomDependencyVersions/>
                                 <banDuplicateClasses>
                                     <scopes>
                                         <scope>compile</scope>
@@ -196,7 +196,7 @@
                                     <findAllDuplicates>true</findAllDuplicates>
                                     <ignoreWhenIdentical>false</ignoreWhenIdentical>
                                 </banDuplicateClasses>
-                                <banCircularDependencies/>
+                                <banCircularDependencies/>-->
                                 <!--<requireEncoding>
                                     <encoding>UTF-8</encoding>
                                     <acceptAsciiSubset>true</acceptAsciiSubset>
@@ -252,7 +252,7 @@
                     <forceJavacCompilerUse>false</forceJavacCompilerUse>
                     <!--<compilerId>eclipse</compilerId>-->
                     <compilerId>javac</compilerId>
-                    <compilerVersion>15</compilerVersion>
+                    <compilerVersion>16</compilerVersion>
                     <compilerArgs>
                         <!--<arg>-properties</arg>
                         <arg>.settings/org.eclipse.jdt.core.prefs</arg>-->
@@ -301,13 +301,13 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>compile-java-15</id>
+                        <id>compile-java-16</id>
                         <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
                         </goals>
                         <configuration>
-                            <release>15</release>
+                            <release>16</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
 
@@ -337,14 +337,14 @@
                     <dependency>
                         <groupId>org.codehaus.plexus</groupId>
                         <artifactId>plexus-utils</artifactId>
-                        <version>3.3.0</version>
+                        <version>3.4.1</version>
                     </dependency>
                     <!-- This not a downgrade, eclipse version system is shitty,
                             this actually the 4.x version. -->
                     <dependency>
                         <groupId>org.eclipse.jdt</groupId>
                         <artifactId>ecj</artifactId>
-                        <version>3.25.0</version>
+                        <version>3.26.0</version>
                     </dependency>
                 </dependencies>
             </plugin>
