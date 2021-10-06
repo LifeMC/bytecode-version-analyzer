@@ -730,7 +730,7 @@ public final class BytecodeVersionAnalyzer {
 
                     startOfArgumentValue = null;
                     previous./*getNext().*/run(arg, result);
-                } else if (!arg.startsWith("--")) { // probably an unrecognized argument
+                } else if (!arg.startsWith("--")) {
                     archivePath.append(arg);
 
                     if (i < argsLength - 1) {
