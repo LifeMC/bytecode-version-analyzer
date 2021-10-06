@@ -342,6 +342,12 @@ public final class BytecodeVersionAnalyzer {
             } else {
                 Logging.info("the jar is not signed from manifest");
             }
+            
+            if (getAutomaticModuleName(manifest) != null) {
+                Logging.info("the jar has automatic module name set as \"" + getAutomaticModuleName(manifest) + "\"");
+            } else {
+                Logging.info("the jar has no automatic module name");
+            }
         }
     }
 
@@ -383,6 +389,16 @@ public final class BytecodeVersionAnalyzer {
             }
         }
         return false;
+    }
+    
+    /**
+     * Gets the automatic module name of the given {@link Manifest}.
+     *
+     * @param manifest The {@link Manifest} to check for automatic module name.
+     * @return The automatic module name of the given {@link Manifest}.
+     */
+    private static final String getAutomaticModuleName(final Manifest manifest) {
+        return manifest.getMainAttributes().getValue("Automatic-Module-Name");
     }
 
     /**
