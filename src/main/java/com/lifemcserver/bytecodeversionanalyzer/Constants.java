@@ -16,7 +16,7 @@ public final class Constants {
      */
     public static final int HEXADECIMAL_ALL_BITS_ONE = 0xFFFF;
     /**
-     * Identifier for Java class files. Classes do not contain this value are invalid.
+     * Identifier for Java class files. Classes that doesn't contain this value are invalid.
      */
     public static final int JAVA_CLASS_FILE_IDENTIFIER = 0xCAFEBABE;
     /**
