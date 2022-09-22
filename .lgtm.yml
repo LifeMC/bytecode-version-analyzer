@@ -3,6 +3,6 @@ queries:
 extraction:
     java:
         index:
-            java_version: 16
+            java_version: 17
             build_command:
                 - ./mvnw clean verify --threads 1C --batch-mode --errors

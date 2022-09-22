@@ -256,7 +256,7 @@
                     <forceJavacCompilerUse>false</forceJavacCompilerUse>
                     <!--<compilerId>eclipse</compilerId>-->
                     <compilerId>javac</compilerId>
-                    <compilerVersion>16</compilerVersion>
+                    <compilerVersion>17</compilerVersion>
                     <compilerArgs>
                         <!--<arg>-properties</arg>
                         <arg>.settings/org.eclipse.jdt.core.prefs</arg>-->
@@ -305,13 +305,13 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>compile-java-16</id>
+                        <id>compile-java-17</id>
                         <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
                         </goals>
                         <configuration>
-                            <release>16</release>
+                            <release>17</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
 

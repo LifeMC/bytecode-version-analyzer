@@ -13,7 +13,7 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="bytecode-version-analyzer" target="8" />
+      <module name="bytecode-version-analyzer" target="17" />
     </bytecodeTargetLevel>
   </component>
   <component name="EclipseCompilerSettings">
