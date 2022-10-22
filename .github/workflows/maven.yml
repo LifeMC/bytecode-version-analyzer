@@ -81,7 +81,7 @@ jobs:
                     java -jar target/bytecode-version-analyzer.jar --debug --fail-verbosity warn --loadPom target/classes/com/lifemcserver/bytecodeversionanalyzer/BytecodeVersionAnalyzer.class target/original-bytecode-version-analyzer.jar
 
             -   name: Upload Artifact
-                uses: actions/upload-artifact@v3.1.0
+                uses: actions/upload-artifact@v3.1.1
                 with:
                     name: bytecode-version-analyzer-nightly.jar
                     path: target/*.jar
