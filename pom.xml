@@ -79,7 +79,7 @@
         <project.build.outputTimestamp>1663873200</project.build.outputTimestamp>
 
         <!-- JUnit version, to not write it two times -->
-        <junit.version>5.9.1</junit.version>
+        <junit.version>5.9.2</junit.version>
     </properties>
 
     <dependencies>
